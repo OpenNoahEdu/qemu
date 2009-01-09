@@ -9,6 +9,7 @@ void register_machines(void)
     qemu_register_machine(&mips_magnum_machine);
     qemu_register_machine(&mips_pica61_machine);
     qemu_register_machine(&mips_mipssim_machine);
+    qemu_register_machine(&mips_pavo_machine);
     qemu_register_machine(&mips_machine);
 }
 
