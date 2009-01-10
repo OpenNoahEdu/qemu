@@ -112,9 +112,9 @@
 #endif
 
 
-#define TCMI_VERBOSE			1
+#define IO_ACCESS_VERBOSE			1
 
-#ifdef TCMI_VERBOSE
+#ifdef IO_ACCESS_VERBOSE
 #define JZ4740_8B_REG(paddr)		\
         fprintf(stderr, "%s: 8-bit register " JZ_FMT_plx "\n",	\
                         __FUNCTION__, paddr)
@@ -124,10 +124,18 @@
 #define JZ4740_32B_REG(paddr)		\
         fprintf(stderr, "%s: 32-bit register " JZ_FMT_plx "\n",	\
                         __FUNCTION__, paddr)
+#define JZ4740_RO_REG(paddr)		\
+        fprintf(stderr, "%s: write to read only 32-bit register " JZ_FMT_plx "\n",	\
+                        __FUNCTION__, paddr)                      
+#define JZ4740_WO_REG(paddr)		\
+        fprintf(stderr, "%s: read from write only 32-bit register " JZ_FMT_plx "\n",	\
+                        __FUNCTION__, paddr)   
 # else
 #define JZ4740_8B_REG(paddr)
 #define JZ4740_16B_REG(paddr)
 #define JZ4740_32B_REG(paddr)
+#define JZ4740_RO_REG(paddr)	
+#define JZ4740_WO_REG(paddr)
 #endif
 
 
@@ -147,6 +155,12 @@ void jz_clk_canidle(jz_clk clk, int can);
 void jz_clk_setrate(jz_clk clk, int divide, int multiply);
 int64_t jz_clk_getrate(jz_clk clk);
 void jz_clk_reparent(jz_clk clk, jz_clk parent);
+
+/*mips_jz.c*/
+struct jz_state_s *jz4740_init(unsigned long sdram_size,
+                                                              uint32_t osc_extal_freq);
+struct jz4740_cpm_s *jz4740_cpm_init(struct jz_state_s *soc);
+qemu_irq *jz4740_intc_init(struct jz_state_s  *soc,qemu_irq parent_irq);
 
 
 

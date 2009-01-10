@@ -44,12 +44,12 @@
 
 
 #define PAVO_RAM_SIZE       (0x4000000) /*64M */
-
+#define PAVO_OSC_EXTAL     (12000000)  /*12MHZ*/
 
 /* pavo board support */
 struct mips_pavo_s
 {
-    struct jz_state_s *cpu;
+    struct jz_state_s *soc;
 };
 
 
@@ -74,7 +74,7 @@ static
                 PAVO_RAM_SIZE + JZ4740_SRAM_SIZE);
         exit(1);
     }
-    s->cpu = jz4740_init(PAVO_RAM_SIZE, NULL, NULL);
+    s->soc = jz4740_init(PAVO_RAM_SIZE, PAVO_OSC_EXTAL);
 
 }
 
