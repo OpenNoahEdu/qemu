@@ -54,6 +54,9 @@ extern QEMUMachine mips_malta_machine;
 /* mips_mipssim.c */
 extern QEMUMachine mips_mipssim_machine;
 
+/* mips_pavo.c */
+extern QEMUMachine mips_pavo_machine;
+
 /* shix.c */
 extern QEMUMachine shix_machine;
 
