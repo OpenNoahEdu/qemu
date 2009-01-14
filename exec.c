@@ -2379,6 +2379,8 @@ static uint32_t unassigned_mem_readb(void *opaque, target_phys_addr_t addr)
 #ifdef DEBUG_UNASSIGNED
     printf("Unassigned mem read " TARGET_FMT_plx "\n", addr);
 #endif
+//printf("Unassigned mem readb " TARGET_FMT_plx " pc %x \n", addr,cpu_single_env->active_tc.PC);
+//exit(-1);
 #if defined(TARGET_SPARC)
     do_unassigned_access(addr, 0, 0, 0, 1);
 #endif
@@ -2390,6 +2392,8 @@ static uint32_t unassigned_mem_readw(void *opaque, target_phys_addr_t addr)
 #ifdef DEBUG_UNASSIGNED
     printf("Unassigned mem read " TARGET_FMT_plx "\n", addr);
 #endif
+//printf("Unassigned mem readw " TARGET_FMT_plx " pc %x \n", addr,cpu_single_env->active_tc.PC);
+//exit(-1);
 #if defined(TARGET_SPARC)
     do_unassigned_access(addr, 0, 0, 0, 2);
 #endif
@@ -2401,6 +2405,8 @@ static uint32_t unassigned_mem_readl(void *opaque, target_phys_addr_t addr)
 #ifdef DEBUG_UNASSIGNED
     printf("Unassigned mem read " TARGET_FMT_plx "\n", addr);
 #endif
+//printf("Unassigned mem readl " TARGET_FMT_plx " pc %x \n", addr,cpu_single_env->active_tc.PC);
+//exit(-1);
 #if defined(TARGET_SPARC)
     do_unassigned_access(addr, 0, 0, 0, 4);
 #endif
@@ -2412,6 +2418,8 @@ static void unassigned_mem_writeb(void *opaque, target_phys_addr_t addr, uint32_
 #ifdef DEBUG_UNASSIGNED
     printf("Unassigned mem write " TARGET_FMT_plx " = 0x%x\n", addr, val);
 #endif
+//printf("Unassigned mem writeb " TARGET_FMT_plx " = 0x%x PC %x \n", addr, val,cpu_single_env->active_tc.PC);
+//if (addr!=0x20 )exit(-1);
 #if defined(TARGET_SPARC)
     do_unassigned_access(addr, 1, 0, 0, 1);
 #endif
@@ -2422,6 +2430,8 @@ static void unassigned_mem_writew(void *opaque, target_phys_addr_t addr, uint32_
 #ifdef DEBUG_UNASSIGNED
     printf("Unassigned mem write " TARGET_FMT_plx " = 0x%x\n", addr, val);
 #endif
+//printf("Unassigned mem writew " TARGET_FMT_plx " = 0x%x PC %x \n", addr, val,cpu_single_env->active_tc.PC);
+//exit(-1);
 #if defined(TARGET_SPARC)
     do_unassigned_access(addr, 1, 0, 0, 2);
 #endif
@@ -2432,6 +2442,8 @@ static void unassigned_mem_writel(void *opaque, target_phys_addr_t addr, uint32_
 #ifdef DEBUG_UNASSIGNED
     printf("Unassigned mem write " TARGET_FMT_plx " = 0x%x\n", addr, val);
 #endif
+//printf("Unassigned mem writel " TARGET_FMT_plx " = 0x%x PC %x \n", addr, val,cpu_single_env->active_tc.PC);
+//exit(-1);
 #if defined(TARGET_SPARC)
     do_unassigned_access(addr, 1, 0, 0, 4);
 #endif
