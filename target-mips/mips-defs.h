@@ -15,13 +15,7 @@
 #endif
 
 /* Even MIPS32 can have 36 bits physical address space. */
-//#define TARGET_PHYS_ADDR_BITS 64
-/*Set TARGET_PHYS_ADDR_BITS will confuse the TARGET_FMT_plx macro */
-#if defined(TARGET_MIPS64)
 #define TARGET_PHYS_ADDR_BITS 64
-#else
-#define TARGET_PHYS_ADDR_BITS 32
-#endif
 
 
 /* Masks used to mark instructions to indicate which ISA level they
