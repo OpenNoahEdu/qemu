@@ -574,6 +574,7 @@ OBJS+=block-raw-posix.o
 endif
 
 LIBS+=-lz
+LIBS+=-lrt
 ifdef CONFIG_ALSA
 LIBS += -lasound
 endif
