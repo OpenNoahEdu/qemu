@@ -42,54 +42,6 @@
 #include "mips_jz.h"
 #include "console.h"
 
-#define DEBUG                   /*global debug on/off */
-
-#define DEBUG_CPM                     (1<<0x0)
-#define DEBUG_EMC                     (1<<0x1)
-#define DEBUG_GPIO                    (1<<0x2)
-#define DEBUG_RTC                       (1<<0x3)
-#define DEBUG_TCU                       (1<<0x4)
-#define DEBUG_LCDC                      (1<<0x5)
-#define DEBUG_DMA                      (1<<0x6)
-#define DEBUG_SADC                      (1<<0x7)
-#define DEBUG_ALL                         (0xffffffff)
-#define  DEBUG_FLAG                    DEBUG_ALL
-
-
-#ifdef DEBUG
-FILE *fp;
-static void debug_init(void)
-{
-    fp = fopen("jz4740.txt", "w+");
-    if (fp == NULL)
-    {
-        fprintf(stderr, "can not open jz4740.txt \n");
-        exit(-1);
-    }
-}
-static void debug_out(uint32_t flag, const char *format, ...)
-{
-    va_list ap;
-    if (fp)
-    {
-        if (flag & DEBUG_FLAG)
-        {
-            va_start(ap, format);
-            vfprintf(fp, format, ap);
-            fflush(fp);
-            va_end(ap);
-        }
-    }
-}
-#else
-static void debug_init(void)
-{
-}
-static void debug_out(uint32_t flag, const char *format, ...)
-{
-}
-#endif
-
 uint32_t jz4740_badwidth_read8(void *opaque, target_phys_addr_t addr)
 {
     uint8_t ret;
@@ -166,7 +118,6 @@ static void jz4740_dump_clocks(jz_clk parent)
 {
     jz_clk i = parent;
 
-    debug_out(DEBUG_CPM, "clock %s rate %d \n", i->name, i->rate);
     for (i = i->child1; i; i = i->sibling)
         jz4740_dump_clocks(i);
 }
@@ -220,8 +171,6 @@ static inline void jz4740_cpccr_update(struct jz4740_cpm_s *s,
 
     s->cpccr = new_value;
 
-    debug_out(DEBUG_CPM, "write to cpccr 0x%x\n", new_value);
-
     jz4740_dump_clocks(jz_findclk(s->soc, "osc_extal"));
 
 }
@@ -240,7 +189,6 @@ static inline void jz4740_cppcr_update(struct jz4740_cpm_s *s,
     if ((!pllen) || (pllen && pllbp))
     {
         jz_clk_setrate(jz_findclk(s->soc, "pll_output"), 1, 1);
-        debug_out(DEBUG_CPM, "pll is bypassed \n");
         s->cppcr = new_value | CPM_CPPCR_PLLS;
         return;
     }
@@ -254,7 +202,6 @@ static inline void jz4740_cppcr_update(struct jz4740_cpm_s *s,
 
     s->cppcr = new_value;
 
-    debug_out(DEBUG_CPM, "write to cppcr 0x%x\n", new_value);
     jz4740_dump_clocks(jz_findclk(s->soc, "osc_extal"));
 
 }
@@ -273,7 +220,6 @@ static inline void jz4740_i2scdr_update(struct jz4740_cpm_s *s,
 
     s->i2scdr = i2scdr;
 
-    debug_out(DEBUG_CPM, "write to i2scdr 0x%x\n", new_value);
     jz4740_dump_clocks(jz_findclk(s->soc, "osc_extal"));
 
 }
@@ -303,7 +249,6 @@ static inline void jz4740_msccdr_update(struct jz4740_cpm_s *s,
 
     s->msccdr = msccdr;
 
-    debug_out(DEBUG_CPM, "write to msccdr 0x%x\n", new_value);
     jz4740_dump_clocks(jz_findclk(s->soc, "osc_extal"));
 
 }
@@ -322,8 +267,6 @@ static void jz4740_cpm_write(void *opaque, target_phys_addr_t addr,
                              uint32_t value)
 {
     struct jz4740_cpm_s *s = (struct jz4740_cpm_s *) opaque;
-
-    debug_out(DEBUG_CPM, "write to cpm addr "JZ_FMT_plx" value 0x%x\n", addr, value);
 
     switch (addr)
     {
@@ -782,8 +725,6 @@ static void jz4740_emc_write8(void *opaque, target_phys_addr_t addr,
 {
     struct jz4740_emc_s *s = (struct jz4740_emc_s *) opaque;
 
-    debug_out(DEBUG_EMC, "jz4740_emc_write8 addr "JZ_FMT_plx"  value %x\n", addr, value);
-
     switch (addr)
     {
     case 0x108:
@@ -817,7 +758,6 @@ static void jz4740_emc_write16(void *opaque, target_phys_addr_t addr,
 {
     struct jz4740_emc_s *s = (struct jz4740_emc_s *) opaque;
 
-    debug_out(DEBUG_EMC, "jz4740_emc_write16 addr "JZ_FMT_plx"  value %x\n", addr, value);
     switch (addr)
     {
     case 0x108:
@@ -860,7 +800,6 @@ static void jz4740_emc_write32(void *opaque, target_phys_addr_t addr,
 {
     struct jz4740_emc_s *s = (struct jz4740_emc_s *) opaque;
 
-    debug_out(DEBUG_EMC, "jz4740_emc_write32 addr "JZ_FMT_plx" value %x\n", addr, value);
     switch (addr)
     {
     case 0x104:
@@ -1039,7 +978,6 @@ static uint32_t jz4740_gpio_read(void *opaque, target_phys_addr_t addr)
 {
     struct jz4740_gpio_s *s = (struct jz4740_gpio_s *) opaque;
     uint32_t group;
-    debug_out(DEBUG_GPIO, "jz4740_gpio_read addr %x\n", addr);
 
     switch (addr)
     {
@@ -1182,8 +1120,6 @@ static void jz4740_gpio_write(void *opaque, target_phys_addr_t addr,
 {
     struct jz4740_gpio_s *s = (struct jz4740_gpio_s *) opaque;
     uint32_t group;
-
-    debug_out(DEBUG_GPIO, "jz4740_gpio_write addr "JZ_FMT_plx"  value %x\n", addr, value);
 
     switch (addr)
     {
@@ -1405,7 +1341,6 @@ static void jz4740_rtc_update_interrupt(struct jz4740_rtc_s *s)
     if (((s->rtccr & 0x40) && (s->rtccr & 0x20))
         || ((s->rtccr & 0x10) && (s->rtccr & 0x8)))
     {
-    	debug_out(DEBUG_RTC,"s->rtccr %x \n",s->rtcsr);
     	qemu_set_irq(s->irq, 1);
     }
         
@@ -1461,7 +1396,6 @@ static uint32_t jz4740_rtc_read(void *opaque, target_phys_addr_t addr)
 {
     struct jz4740_rtc_s *s = (struct jz4740_rtc_s *) opaque;
 
-    debug_out(DEBUG_RTC, "jz4740_rtc_read addr %x\n", addr);
     switch (addr)
     {
     case 0x0:
@@ -1496,8 +1430,6 @@ static void jz4740_rtc_write(void *opaque, target_phys_addr_t addr,
                              uint32_t value)
 {
     struct jz4740_rtc_s *s = (struct jz4740_rtc_s *) opaque;
-
-    debug_out(DEBUG_RTC, "jz4740_rtc_write addr "JZ_FMT_plx" value %x\n", addr, value);
 
     switch (addr)
     {
@@ -1699,9 +1631,6 @@ static void jz4740_tcu_if_write8(void *opaque, target_phys_addr_t addr,
 {
     struct jz4740_tcu_s *s = (struct jz4740_tcu_s *) opaque;
 
-    debug_out(DEBUG_TCU, "jz4740_tcu_if_write8 addr %x value %x\n", addr,
-              value);
-
     switch (addr)
     {
     case 0x14:
@@ -1724,9 +1653,6 @@ static void jz4740_tcu_if_write32(void *opaque, target_phys_addr_t addr,
                                   uint32_t value)
 {
     struct jz4740_tcu_s *s = (struct jz4740_tcu_s *) opaque;
-
-    debug_out(DEBUG_TCU, "jz4740_tcu_if_write32 addr %x value %x\n", addr,
-              value);
 
     switch (addr)
     {
@@ -1764,8 +1690,6 @@ static uint32_t jz4740_tcu_if_read8(void *opaque, target_phys_addr_t addr)
 {
     struct jz4740_tcu_s *s = (struct jz4740_tcu_s *) opaque;
 
-    debug_out(DEBUG_TCU, "jz4740_tcu_if_read8 addr %x\n", addr);
-
     switch (addr)
     {
     case 0x10:
@@ -1780,8 +1704,6 @@ static uint32_t jz4740_tcu_if_read8(void *opaque, target_phys_addr_t addr)
 static uint32_t jz4740_tcu_if_read32(void *opaque, target_phys_addr_t addr)
 {
     struct jz4740_tcu_s *s = (struct jz4740_tcu_s *) opaque;
-
-    debug_out(DEBUG_TCU, "jz4740_tcu_if_read32 addr %x\n", addr);
 
     switch (addr)
     {
@@ -1941,7 +1863,6 @@ static uint32_t jz4740_lcdc_read(void *opaque, target_phys_addr_t addr)
 {
     struct jz4740_lcdc_s *s = (struct jz4740_lcdc_s *) opaque;
 
-    debug_out(DEBUG_LCDC, "jz4740_lcdc_read addr %x \n", addr);
     switch (addr)
     {
     case 0x0:
@@ -1998,8 +1919,6 @@ static void jz4740_lcdc_write(void *opaque, target_phys_addr_t addr,
                               uint32_t value)
 {
     struct jz4740_lcdc_s *s = (struct jz4740_lcdc_s *) opaque;
-
-    debug_out(DEBUG_LCDC, "jz4740_lcdc_write addr "JZ_FMT_plx" value %x\n", addr, value);
 
     switch (addr)
     {
@@ -2453,7 +2372,6 @@ static uint32_t jz4740_dma_read(void *opaque, target_phys_addr_t addr)
     struct jz4740_dma_s *s = (struct jz4740_dma_s *) opaque;
     int channel;
 
-    debug_out(DEBUG_DMA, "jz4740_dma_read addr %x \n", addr);
     switch (addr)
     {
     case 0x300:
@@ -2531,7 +2449,6 @@ static void jz4740_dma_write(void *opaque, target_phys_addr_t addr,
     struct jz4740_dma_s *s = (struct jz4740_dma_s *) opaque;
     int channel;
 
-    debug_out(DEBUG_DMA, "jz4740_dma_write addr "JZ_FMT_plx"  value %x \n", addr, value);
     switch (addr)
     {
     case 0x304:
@@ -2661,6 +2578,47 @@ static struct jz4740_dma_s *jz4740_dma_init(struct jz_state_s *soc,
 
 }
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+//===========================================jz_ts=========================================
+
+
 #define PEN_DOWN 1
 #define PEN_UP       0
 struct jz4740_sadc_s
@@ -2702,15 +2660,14 @@ static void jz4740_touchscreen_interrupt(struct jz4740_sadc_s *s)
 
     if ((s->adctrl)&(s->adstate))
     {
-    	debug_out(DEBUG_SADC,"irq s->adctrl %x s->adstate %x \n",s->adctrl,s->adstate);
     	qemu_set_irq(s->irq,1);
     }
     	
 }
 
-static void jz4740_touchscreen_event(void *opaque,
-                int x, int y, int z, int buttons_state)
+static void jz4740_touchscreen_event(void *opaque, int x, int y, int z, int buttons_state)
 {
+  if( x>0 && y>0 && x<32767 && y<32767){
     struct jz4740_sadc_s *s = opaque;
 
     if (!s->tchen)
@@ -2719,18 +2676,19 @@ static void jz4740_touchscreen_event(void *opaque,
     s->x = (x*4096)/0x7FFF;
     s->y = (y*4096)/0x7FFF;
 
-	if ((s->pen_state == PEN_UP)&&(buttons_state==PEN_DOWN))
-	{
-		 s->adstate |= 0x14;
-		jz4740_touchscreen_interrupt(s);
-	}
-	else if ((s->pen_state == PEN_DOWN)&&(buttons_state==PEN_UP))
-	{
-		s->adstate |= 0xc;
-	   jz4740_touchscreen_interrupt(s);
-	}
-	s->pen_state = buttons_state;
-	
+    if ((s->pen_state == PEN_UP)&&(buttons_state==PEN_DOWN))
+    {
+        s->adstate |= 0x14;
+        jz4740_touchscreen_interrupt(s);
+    }
+    else if ((s->pen_state == PEN_DOWN)&&(buttons_state==PEN_UP))
+    {
+	s->adstate |= 0xc;
+	jz4740_touchscreen_interrupt(s);
+    }
+    
+    s->pen_state = buttons_state;
+  }
 }
 
 static uint32_t jz4740_sadc_read8(void *opaque, target_phys_addr_t addr)
@@ -2804,8 +2762,6 @@ static void jz4740_sadc_write8(void *opaque, target_phys_addr_t addr,
 {
     struct jz4740_sadc_s *s = (struct jz4740_sadc_s *) opaque;
 
-    debug_out(DEBUG_SADC, "jz4740_sadc_write8 addr "JZ_FMT_plx" value %x\n", addr, value);
-
     switch (addr)
     {
     	case 0x0:
@@ -2829,8 +2785,6 @@ static void jz4740_sadc_write16(void *opaque, target_phys_addr_t addr,
 {
     struct jz4740_sadc_s *s = (struct jz4740_sadc_s *) opaque;
 
-    debug_out(DEBUG_SADC, "jz4740_sadc_write16 addr "JZ_FMT_plx"  value %x\n", addr, value);
-
     switch (addr)
     {
     	case 0x10:
@@ -2853,9 +2807,6 @@ static void jz4740_sadc_write32(void *opaque, target_phys_addr_t addr,
                              uint32_t value)
 {
     struct jz4740_sadc_s *s = (struct jz4740_sadc_s *) opaque;
-
-
-    debug_out(DEBUG_SADC, "jz4740_sadc_write32 addr "JZ_FMT_plx"  value %x\n", addr, value);
 
     switch (addr)
     {
@@ -2907,8 +2858,7 @@ static struct jz4740_sadc_s *jz4740_sadc_init(struct jz_state_s *soc,
     s->irq = irq;
     s->soc = soc;
 
-	qemu_add_mouse_event_handler(jz4740_touchscreen_event, s, 1,
-    									       "QEMU JZ4740 Touchscreen");
+    qemu_add_mouse_event_handler(jz4740_touchscreen_event, s, 1, "QEMU JZ4740 Touchscreen");
 
     jz4740_sadc_reset(s);
 
@@ -2917,6 +2867,26 @@ static struct jz4740_sadc_s *jz4740_sadc_init(struct jz_state_s *soc,
     cpu_register_physical_memory(s->base, 0x00001000, iomemtype);
     return s;
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 static void jz4740_cpu_reset(void *opaque)
 {
@@ -2940,7 +2910,6 @@ struct jz_state_s *jz4740_init(unsigned long sdram_size,
         exit(1);
     }
 
-    debug_init();
     qemu_register_reset(jz4740_cpu_reset, s->env);
 
     s->sdram_size = sdram_size;
@@ -2973,7 +2942,13 @@ struct jz_state_s *jz4740_init(unsigned long sdram_size,
     jz4740_tcu_init(s, s->tcu, 0);
     s->lcdc = jz4740_lcdc_init(s, intc[30], ds);
     s->dma = jz4740_dma_init(s, intc[20]);
+//////////////////////////jz_ts////////////////////////////////
     s->sadc = jz4740_sadc_init(s,intc[12]);
+//////////////////////////jz_ts!///////////////////////////////
+
+////////////////////////jz_mouse///////////////////////////////
+//    s->sadc = jz4740_sadc2_init(s,intc[12]);
+////////////////////////jz_mouse!//////////////////////////////
 
     if (serial_hds[0])
         serial_mm_init(0x10030000, 2, intc[9], 57600, serial_hds[0], 1);

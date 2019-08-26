@@ -34,7 +34,6 @@ static inline void glue(jz4740_tcu_time_sync,
     if ((!(s->tsr & (1 << TCU_INDEX))) && (s->ter & (1 << TCU_INDEX))
         && (s->freq[TCU_INDEX] != 0))
     {
-        //debug_out(DEBUG_TCU, "jz4740_tcu_time_sync%x \n", TCU_INDEX);
         /*first enable timer */
         if (s->time[TCU_INDEX] == 0)
         {
@@ -43,11 +42,6 @@ static inline void glue(jz4740_tcu_time_sync,
             return;
         }
         distance = qemu_get_clock(vm_clock) - s->time[TCU_INDEX];
-        //debug_out(DEBUG_TCU,
-         //         "s->freq[TCU_INDEX]  %d s->prescale[TCU_INDEX] %d \n",
-         //         s->freq[TCU_INDEX], s->prescale[TCU_INDEX]);
-       // debug_out(DEBUG_TCU, "distance %lld s->time[TCU_INDEX] %lld \n",
-       //           distance, s->time[TCU_INDEX]);
         //temp = muldiv64(distance,(s->freq[TCU_INDEX]/s->prescale[TCU_INDEX]),ticks_per_sec);
         temp = muldiv64(distance, 46875, ticks_per_sec);
         if (temp != 0)
@@ -107,9 +101,6 @@ static inline void glue(jz4740_tcu_start_full,
     /*The timer has not beed initialized */
     if (!s->full_timer[TCU_INDEX])
         return;
-        
-	debug_out(DEBUG_TCU, "s->tsr %d  s->ter %d  s->freq[TCU_INDEX]  %d \n",
-       			          s->tsr ,  s->ter ,s->freq[TCU_INDEX]);
     if ((!(s->tsr & (1 << TCU_INDEX))) && (s->ter & (1 << TCU_INDEX))
         && (s->freq[TCU_INDEX] != 0))
     {
@@ -119,8 +110,6 @@ static inline void glue(jz4740_tcu_start_full,
             (s->tdfr[TCU_INDEX] - s->tcnt[TCU_INDEX]) * s->prescale[TCU_INDEX];
         next += muldiv64(count, ticks_per_sec, s->freq[TCU_INDEX]);
         qemu_mod_timer(s->full_timer[TCU_INDEX], next);
-                debug_out(DEBUG_TCU, "s->tdfr[TCU_INDEX]  %d  s->tcnt[TCU_INDEX] %d  next  %lld \n",
-       			          s->tdfr[TCU_INDEX] ,  s->tcnt[TCU_INDEX]  ,next);
     }
     else
         qemu_del_timer(s->full_timer[TCU_INDEX]);
@@ -180,7 +169,6 @@ static uint32_t glue(jz4740_tcu_read, TCU_INDEX) (void *opaque,
 {
     struct jz4740_tcu_s *s = (struct jz4740_tcu_s *) opaque;
 
-    debug_out(DEBUG_TCU, "jz4740_tcu_read%x addr %x\n", TCU_INDEX, addr);
     addr -= 0x40 + TCU_INDEX * 0x10;
 
     switch (addr)
@@ -208,8 +196,6 @@ static void glue(jz4740_tcu_write, TCU_INDEX) (void *opaque,
 {
     struct jz4740_tcu_s *s = (struct jz4740_tcu_s *) opaque;
 
-    debug_out(DEBUG_TCU, "jz4740_tcu_write%x addr "JZ_FMT_plx" value %x \n", TCU_INDEX,
-              addr, value);
     addr -= 0x40 + TCU_INDEX * 0x10;
 
     switch (addr)
