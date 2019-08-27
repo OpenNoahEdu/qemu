@@ -102,7 +102,7 @@
 
 
 
-#define JZ_FMT_plx "%#16x"
+#define JZ_FMT_plx "%llx"
 
 uint32_t jz4740_badwidth_read8(void *opaque, target_phys_addr_t addr);
 uint32_t jz4740_badwidth_read16(void *opaque, target_phys_addr_t addr);
@@ -203,6 +203,7 @@ struct jz_state_s {
 	struct jz4740_tcu_s *tcu;
 	struct jz4740_lcdc_s *lcdc;
 	struct jz4740_dma_s *dma;
+	struct jz4740_sadc_s *sadc;
 	
 };
 
