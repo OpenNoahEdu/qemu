@@ -66,7 +66,8 @@
 
 #define TARGET_HAS_ICE 1
 
-#if defined (TARGET_PPC64)
+/* Load a 32 bit BIOS also on 64 bit machines */
+#if defined (TARGET_PPC64) && defined(CONFIG_USER_ONLY)
 #define ELF_MACHINE     EM_PPC64
 #else
 #define ELF_MACHINE     EM_PPC
@@ -308,6 +309,7 @@ struct ppc_spr_t {
 
 /* Altivec registers (128 bits) */
 union ppc_avr_t {
+    float32 f[4];
     uint8_t u8[16];
     uint16_t u16[8];
     uint32_t u32[4];
@@ -610,8 +612,10 @@ struct CPUPPCState {
     uint32_t vscr;
     /* SPE registers */
     uint64_t spe_acc;
-    float_status spe_status;
     uint32_t spe_fscr;
+    /* SPE and Altivec can share a status since they will never be used
+     * simultaneously */
+    float_status vec_status;
 
     /* Internal devices resources */
     /* Time base and decrementer */
@@ -1349,6 +1353,16 @@ enum {
     PPCBookE_INPUT_INT        = 5,
     PPCBookE_INPUT_CINT       = 6,
     PPCBookE_INPUT_NB,
+};
+
+enum {
+    /* PowerPC E500 input pins */
+    PPCE500_INPUT_RESET_CORE = 0,
+    PPCE500_INPUT_MCK        = 1,
+    PPCE500_INPUT_CINT       = 3,
+    PPCE500_INPUT_INT        = 4,
+    PPCE500_INPUT_DEBUG      = 6,
+    PPCE500_INPUT_NB,
 };
 
 enum {
