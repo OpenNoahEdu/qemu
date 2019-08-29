@@ -11,14 +11,15 @@
 #include "usb.h"
 #include "block.h"
 #include "scsi-disk.h"
+#include "console.h"
 
 //#define DEBUG_MSD
 
 #ifdef DEBUG_MSD
-#define DPRINTF(fmt, args...) \
-do { printf("usb-msd: " fmt , ##args); } while (0)
+#define DPRINTF(fmt, ...) \
+do { printf("usb-msd: " fmt , ## __VA_ARGS__); } while (0)
 #else
-#define DPRINTF(fmt, args...) do {} while(0)
+#define DPRINTF(fmt, ...) do {} while(0)
 #endif
 
 /* USB requests.  */
@@ -552,8 +553,6 @@ USBDevice *usb_msd_init(const char *filename)
     bdrv = bdrv_new("usb");
     if (bdrv_open2(bdrv, filename, 0, drv) < 0)
         goto fail;
-    if (qemu_key_check(bdrv, filename))
-        goto fail;
     s->bs = bdrv;
 
     s->dev.speed = USB_SPEED_FULL;
@@ -573,4 +572,11 @@ USBDevice *usb_msd_init(const char *filename)
  fail:
     qemu_free(s);
     return NULL;
+}
+
+BlockDriverState *usb_msd_get_bdrv(USBDevice *dev)
+{
+    MSDState *s = (MSDState *)dev;
+
+    return s->bs;
 }

@@ -40,11 +40,10 @@
 //#define DEBUG_OPENPIC
 
 #ifdef DEBUG_OPENPIC
-#define DPRINTF(fmt, args...) do { printf(fmt , ##args); } while (0)
+#define DPRINTF(fmt, ...) do { printf(fmt , ## __VA_ARGS__); } while (0)
 #else
-#define DPRINTF(fmt, args...) do { } while (0)
+#define DPRINTF(fmt, ...) do { } while (0)
 #endif
-#define ERROR(fmr, args...) do { printf("ERROR: " fmr , ##args); } while (0)
 
 #define USE_MPCxxx /* Intel model is broken, for now */
 
@@ -1047,7 +1046,7 @@ static void openpic_map(PCIDevice *pci_dev, int region_num,
             addr + 0x20000, addr + 0x20000 + 0x1000 * MAX_CPU);
     cpu_register_physical_memory(addr, 0x40000, opp->mem_index);
 #if 0 // Don't implement ISU for now
-    opp_io_memory = cpu_register_io_memory(0, openpic_src_read,
+    opp_io_memory = cpu_register_io_memory(openpic_src_read,
                                            openpic_src_write);
     cpu_register_physical_memory(isu_base, 0x20 * (EXT_IRQ + 2),
                                  opp_io_memory);
@@ -1209,16 +1208,16 @@ qemu_irq *openpic_init (PCIBus *bus, int *pmem_index, int nb_cpus,
         pci_config_set_vendor_id(pci_conf, PCI_VENDOR_ID_IBM);
         pci_config_set_device_id(pci_conf, PCI_DEVICE_ID_IBM_OPENPIC2);
         pci_config_set_class(pci_conf, PCI_CLASS_SYSTEM_OTHER); // FIXME?
-        pci_conf[0x0e] = 0x00; // header_type
+        pci_conf[PCI_HEADER_TYPE] = PCI_HEADER_TYPE_NORMAL; // header_type
         pci_conf[0x3d] = 0x00; // no interrupt pin
 
         /* Register I/O spaces */
-        pci_register_io_region((PCIDevice *)opp, 0, 0x40000,
+        pci_register_bar((PCIDevice *)opp, 0, 0x40000,
                                PCI_ADDRESS_SPACE_MEM, &openpic_map);
     } else {
         opp = qemu_mallocz(sizeof(openpic_t));
     }
-    opp->mem_index = cpu_register_io_memory(0, openpic_read,
+    opp->mem_index = cpu_register_io_memory(openpic_read,
                                             openpic_write, opp);
 
     //    isu_base &= 0xFFFC0000;
@@ -1688,7 +1687,7 @@ qemu_irq *mpic_init (target_phys_addr_t base, int nb_cpus,
     for (i = 0; i < sizeof(list)/sizeof(list[0]); i++) {
         int mem_index;
 
-        mem_index = cpu_register_io_memory(0, list[i].read, list[i].write, mpp);
+        mem_index = cpu_register_io_memory(list[i].read, list[i].write, mpp);
         if (mem_index < 0) {
             goto free;
         }

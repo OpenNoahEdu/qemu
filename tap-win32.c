@@ -23,14 +23,12 @@
  *
  *  You should have received a copy of the GNU General Public License
  *  along with this program (see the file COPYING included with this
- *  distribution); if not, write to the Free Software Foundation, Inc.,
- *  51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
+ *  distribution); if not, see <http://www.gnu.org/licenses/>.
  */
 #include "qemu-common.h"
 #include "net.h"
 #include "sysemu.h"
 #include <stdio.h>
-#define WIN32_LEAN_AND_MEAN
 #include <windows.h>
 
 /* NOTE: PCIBus is redefined in winddk.h */
@@ -255,7 +253,7 @@ static int is_tap_win32_dev(const char *guid)
                 component_id_string,
                 NULL,
                 &data_type,
-                component_id,
+                (LPBYTE)component_id,
                 &len);
 
             if (!(status != ERROR_SUCCESS || data_type != REG_SZ)) {
@@ -265,7 +263,7 @@ static int is_tap_win32_dev(const char *guid)
                     net_cfg_instance_id_string,
                     NULL,
                     &data_type,
-                    net_cfg_instance_id,
+                    (LPBYTE)net_cfg_instance_id,
                     &len);
 
                 if (status == ERROR_SUCCESS && data_type == REG_SZ) {
@@ -354,7 +352,7 @@ static int get_device_guid(
                 name_string,
                 NULL,
                 &name_type,
-                name_data,
+                (LPBYTE)name_data,
                 &len);
 
             if (status != ERROR_SUCCESS || name_type != REG_SZ) {
@@ -561,7 +559,7 @@ static int tap_win32_read(tap_win32_overlapped_t *overlapped,
 }
 
 static void tap_win32_free_buffer(tap_win32_overlapped_t *overlapped,
-                                  char* pbuf)
+                                  uint8_t *pbuf)
 {
     tun_buffer_t* buffer = (tun_buffer_t*)pbuf;
     put_buffer_on_free_list(overlapped, buffer);
@@ -581,7 +579,7 @@ static int tap_win32_open(tap_win32_overlapped_t **phandle,
         unsigned long minor;
         unsigned long debug;
     } version;
-    LONG version_len;
+    DWORD version_len;
     DWORD idThread;
     HANDLE hThread;
 
@@ -639,11 +637,23 @@ static int tap_win32_open(tap_win32_overlapped_t **phandle,
      tap_win32_overlapped_t *handle;
  } TAPState;
 
-static void tap_receive(void *opaque, const uint8_t *buf, int size)
+static void tap_cleanup(VLANClientState *vc)
 {
-    TAPState *s = opaque;
+    TAPState *s = vc->opaque;
 
-    tap_win32_write(s->handle, buf, size);
+    qemu_del_wait_object(s->handle->tap_semaphore, NULL, NULL);
+
+    /* FIXME: need to kill thread and close file handle:
+       tap_win32_close(s);
+    */
+    qemu_free(s);
+}
+
+static ssize_t tap_receive(VLANClientState *vc, const uint8_t *buf, size_t size)
+{
+    TAPState *s = vc->opaque;
+
+    return tap_win32_write(s->handle, buf, size);
 }
 
 static void tap_win32_send(void *opaque)
@@ -673,7 +683,8 @@ int tap_win32_init(VLANState *vlan, const char *model,
         return -1;
     }
 
-    s->vc = qemu_new_vlan_client(vlan, model, name, tap_receive, NULL, s);
+    s->vc = qemu_new_vlan_client(vlan, model, name, NULL, tap_receive,
+                                 NULL, tap_cleanup, s);
 
     snprintf(s->vc->info_str, sizeof(s->vc->info_str),
              "tap: ifname=%s", ifname);

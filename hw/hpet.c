@@ -17,8 +17,7 @@
  * Lesser General Public License for more details.
  *
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston MA  02110-1301 USA
+ * License along with this library; if not, see <http://www.gnu.org/licenses/>.
  *
  * *****************************************************************
  *
@@ -411,7 +410,7 @@ static void hpet_ram_writel(void *opaque, target_phys_addr_t addr,
                            (timer->config & HPET_TN_SETVAL))
                     timer->cmp = (timer->cmp & 0xffffffff00000000ULL)
                                   | new_val;
-                else {
+                if (timer_is_periodic(timer)) {
                     /*
                      * FIXME: Clamp period to reasonable min value?
                      * Clamp period to reasonable max value
@@ -554,6 +553,7 @@ static void hpet_reset(void *opaque) {
     /* 64-bit main counter; 3 timers supported; LegacyReplacementRoute. */
     s->capability = 0x8086a201ULL;
     s->capability |= ((HPET_CLK_PERIOD) << 32);
+    s->config = 0ULL;
     if (count > 0)
         /* we don't enable pit when hpet_reset is first called (by hpet_init)
          * because hpet is taking over for pit here. On subsequent invocations,
@@ -582,7 +582,7 @@ void hpet_init(qemu_irq *irq) {
     register_savevm("hpet", -1, 1, hpet_save, hpet_load, s);
     qemu_register_reset(hpet_reset, s);
     /* HPET Area */
-    iomemtype = cpu_register_io_memory(0, hpet_ram_read,
+    iomemtype = cpu_register_io_memory(hpet_ram_read,
                                        hpet_ram_write, s);
     cpu_register_physical_memory(HPET_BASE, 0x400, iomemtype);
 }

@@ -13,8 +13,7 @@
  * Lesser General Public License for more details.
  *
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston MA  02110-1301 USA
+ * License along with this library; if not, see <http://www.gnu.org/licenses/>
  */
 #include "hw.h"
 #include "pc.h"
@@ -483,13 +482,18 @@ static int pm_load(QEMUFile* f,void* opaque,int version_id)
 
 static void piix4_reset(void *opaque)
 {
-	PIIX4PMState *s = opaque;
-	uint8_t *pci_conf = s->dev.config;
+    PIIX4PMState *s = opaque;
+    uint8_t *pci_conf = s->dev.config;
 
-	pci_conf[0x58] = 0;
-	pci_conf[0x59] = 0;
-	pci_conf[0x5a] = 0;
-	pci_conf[0x5b] = 0;
+    pci_conf[0x58] = 0;
+    pci_conf[0x59] = 0;
+    pci_conf[0x5a] = 0;
+    pci_conf[0x5b] = 0;
+
+    if (kvm_enabled()) {
+        /* Mark SMM as already inited (until KVM supports SMM). */
+        pci_conf[0x5B] = 0x02;
+    }
 }
 
 i2c_bus *piix4_pm_init(PCIBus *bus, int devfn, uint32_t smb_io_base,
@@ -510,7 +514,7 @@ i2c_bus *piix4_pm_init(PCIBus *bus, int devfn, uint32_t smb_io_base,
     pci_conf[0x08] = 0x03; // revision number
     pci_conf[0x09] = 0x00;
     pci_config_set_class(pci_conf, PCI_CLASS_BRIDGE_OTHER);
-    pci_conf[0x0e] = 0x00; // header_type
+    pci_conf[PCI_HEADER_TYPE] = PCI_HEADER_TYPE_NORMAL; // header_type
     pci_conf[0x3d] = 0x01; // interrupt pin 1
 
     pci_conf[0x40] = 0x01; /* PM io base read only bit */
@@ -543,7 +547,7 @@ i2c_bus *piix4_pm_init(PCIBus *bus, int devfn, uint32_t smb_io_base,
 
     register_savevm("piix4_pm", 0, 1, pm_save, pm_load, s);
 
-    s->smbus = i2c_init_bus();
+    s->smbus = i2c_init_bus(NULL, "i2c");
     s->irq = sci_irq;
     qemu_register_reset(piix4_reset, s);
 
@@ -604,7 +608,7 @@ static uint32_t gpe_readb(void *opaque, uint32_t addr)
     }
 
 #if defined(DEBUG)
-    printf("gpe read %lx == %lx\n", addr, val);
+    printf("gpe read %x == %x\n", addr, val);
 #endif
     return val;
 }
@@ -646,7 +650,7 @@ static void gpe_writeb(void *opaque, uint32_t addr, uint32_t val)
    }
 
 #if defined(DEBUG)
-    printf("gpe write %lx <== %d\n", addr, val);
+    printf("gpe write %x <== %d\n", addr, val);
 #endif
 }
 
@@ -666,7 +670,7 @@ static uint32_t pcihotplug_read(void *opaque, uint32_t addr)
     }
 
 #if defined(DEBUG)
-    printf("pcihotplug read %lx == %lx\n", addr, val);
+    printf("pcihotplug read %x == %x\n", addr, val);
 #endif
     return val;
 }
@@ -684,14 +688,14 @@ static void pcihotplug_write(void *opaque, uint32_t addr, uint32_t val)
    }
 
 #if defined(DEBUG)
-    printf("pcihotplug write %lx <== %d\n", addr, val);
+    printf("pcihotplug write %x <== %d\n", addr, val);
 #endif
 }
 
 static uint32_t pciej_read(void *opaque, uint32_t addr)
 {
 #if defined(DEBUG)
-    printf("pciej read %lx == %lx\n", addr, val);
+    printf("pciej read %x\n", addr);
 #endif
     return 0;
 }
@@ -705,11 +709,13 @@ static void pciej_write(void *opaque, uint32_t addr, uint32_t val)
 #endif
 
 #if defined(DEBUG)
-    printf("pciej write %lx <== %d\n", addr, val);
+    printf("pciej write %x <== %d\n", addr, val);
 #endif
 }
 
-void qemu_system_hot_add_init(void)
+static void piix4_device_hot_add(int bus, int slot, int state);
+
+void piix4_acpi_system_hot_add_init(void)
 {
     register_ioport_write(GPE_BASE, 4, 1, gpe_writeb, &gpe);
     register_ioport_read(GPE_BASE, 4, 1,  gpe_readb, &gpe);
@@ -719,6 +725,8 @@ void qemu_system_hot_add_init(void)
 
     register_ioport_write(PCI_EJ_BASE, 4, 4, pciej_write, NULL);
     register_ioport_read(PCI_EJ_BASE, 4, 4,  pciej_read, NULL);
+
+    qemu_system_device_hot_add_register(piix4_device_hot_add);
 }
 
 static void enable_device(struct pci_status *p, struct gpe_regs *g, int slot)
@@ -733,7 +741,7 @@ static void disable_device(struct pci_status *p, struct gpe_regs *g, int slot)
     p->down |= (1 << slot);
 }
 
-void qemu_system_device_hot_add(int bus, int slot, int state)
+static void piix4_device_hot_add(int bus, int slot, int state)
 {
     pci0_status.up = 0;
     pci0_status.down = 0;
@@ -745,6 +753,18 @@ void qemu_system_device_hot_add(int bus, int slot, int state)
         qemu_set_irq(pm_state->irq, 1);
         qemu_set_irq(pm_state->irq, 0);
     }
+}
+
+static qemu_system_device_hot_add_t device_hot_add_callback;
+void qemu_system_device_hot_add_register(qemu_system_device_hot_add_t callback)
+{
+    device_hot_add_callback = callback;
+}
+
+void qemu_system_device_hot_add(int pcibus, int slot, int state)
+{
+    if (device_hot_add_callback)
+        device_hot_add_callback(pcibus, slot, state);
 }
 
 struct acpi_table_header

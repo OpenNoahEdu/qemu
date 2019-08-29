@@ -3,31 +3,16 @@
 
 #include "qemu-aio.h"
 #include "qemu-common.h"
+#include "qemu-option.h"
 
 /* block.c */
 typedef struct BlockDriver BlockDriver;
-
-extern BlockDriver bdrv_raw;
-extern BlockDriver bdrv_host_device;
-extern BlockDriver bdrv_cow;
-extern BlockDriver bdrv_qcow;
-extern BlockDriver bdrv_vmdk;
-extern BlockDriver bdrv_cloop;
-extern BlockDriver bdrv_dmg;
-extern BlockDriver bdrv_bochs;
-extern BlockDriver bdrv_vpc;
-extern BlockDriver bdrv_vvfat;
-extern BlockDriver bdrv_qcow2;
-extern BlockDriver bdrv_parallels;
-extern BlockDriver bdrv_nbd;
 
 typedef struct BlockDriverInfo {
     /* in bytes, 0 if irrelevant */
     int cluster_size;
     /* offset at which the VM state can be saved (0 if not possible) */
     int64_t vm_state_offset;
-    int64_t highest_alloc; /* highest allocated block offset (in bytes) */
-    int64_t num_free_bytes; /* below highest_alloc  */
 } BlockDriverInfo;
 
 typedef struct QEMUSnapshotInfo {
@@ -52,18 +37,20 @@ typedef struct QEMUSnapshotInfo {
                                      bdrv_file_open()) */
 #define BDRV_O_NOCACHE     0x0020 /* do not use the host page cache */
 #define BDRV_O_CACHE_WB    0x0040 /* use write-back caching */
-#define BDRV_O_CACHE_DEF   0x0080 /* use default caching */
 
-#define BDRV_O_CACHE_MASK  (BDRV_O_NOCACHE | BDRV_O_CACHE_WB | BDRV_O_CACHE_DEF)
+#define BDRV_O_CACHE_MASK  (BDRV_O_NOCACHE | BDRV_O_CACHE_WB)
 
-void bdrv_info(void);
-void bdrv_info_stats(void);
+void bdrv_info(Monitor *mon);
+void bdrv_info_stats(Monitor *mon);
 
 void bdrv_init(void);
 BlockDriver *bdrv_find_format(const char *format_name);
-int bdrv_create(BlockDriver *drv,
-                const char *filename, int64_t size_in_sectors,
-                const char *backing_file, int flags);
+int bdrv_create(BlockDriver *drv, const char* filename,
+    QEMUOptionParameter *options);
+int bdrv_create2(BlockDriver *drv,
+                 const char *filename, int64_t size_in_sectors,
+                 const char *backing_file, const char *backing_format,
+                 int flags);
 BlockDriverState *bdrv_new(const char *device_name);
 void bdrv_delete(BlockDriverState *bs);
 int bdrv_file_open(BlockDriverState **pbs, const char *filename, int flags);
@@ -71,6 +58,7 @@ int bdrv_open(BlockDriverState *bs, const char *filename, int flags);
 int bdrv_open2(BlockDriverState *bs, const char *filename, int flags,
                BlockDriver *drv);
 void bdrv_close(BlockDriverState *bs);
+int bdrv_check(BlockDriverState *bs);
 int bdrv_read(BlockDriverState *bs, int64_t sector_num,
               uint8_t *buf, int nb_sectors);
 int bdrv_write(BlockDriverState *bs, int64_t sector_num,
@@ -84,6 +72,8 @@ int64_t bdrv_getlength(BlockDriverState *bs);
 void bdrv_get_geometry(BlockDriverState *bs, uint64_t *nb_sectors_ptr);
 void bdrv_guess_geometry(BlockDriverState *bs, int *pcyls, int *pheads, int *psecs);
 int bdrv_commit(BlockDriverState *bs);
+void bdrv_register(BlockDriver *bdrv);
+
 /* async block I/O */
 typedef struct BlockDriverAIOCB BlockDriverAIOCB;
 typedef void BlockDriverCompletionFunc(void *opaque, int ret);
@@ -94,16 +84,13 @@ BlockDriverAIOCB *bdrv_aio_readv(BlockDriverState *bs, int64_t sector_num,
 BlockDriverAIOCB *bdrv_aio_writev(BlockDriverState *bs, int64_t sector_num,
                                   QEMUIOVector *iov, int nb_sectors,
                                   BlockDriverCompletionFunc *cb, void *opaque);
-
-BlockDriverAIOCB *bdrv_aio_read(BlockDriverState *bs, int64_t sector_num,
-                                uint8_t *buf, int nb_sectors,
-                                BlockDriverCompletionFunc *cb, void *opaque);
-BlockDriverAIOCB *bdrv_aio_write(BlockDriverState *bs, int64_t sector_num,
-                                 const uint8_t *buf, int nb_sectors,
-                                 BlockDriverCompletionFunc *cb, void *opaque);
 void bdrv_aio_cancel(BlockDriverAIOCB *acb);
 
-int qemu_key_check(BlockDriverState *bs, const char *name);
+/* sg packet commands */
+int bdrv_ioctl(BlockDriverState *bs, unsigned long int req, void *buf);
+BlockDriverAIOCB *bdrv_aio_ioctl(BlockDriverState *bs,
+        unsigned long int req, void *buf,
+        BlockDriverCompletionFunc *cb, void *opaque);
 
 /* Ensure contents are flushed to disk.  */
 void bdrv_flush(BlockDriverState *bs);
@@ -136,14 +123,17 @@ int bdrv_is_inserted(BlockDriverState *bs);
 int bdrv_media_changed(BlockDriverState *bs);
 int bdrv_is_locked(BlockDriverState *bs);
 void bdrv_set_locked(BlockDriverState *bs, int locked);
-void bdrv_eject(BlockDriverState *bs, int eject_flag);
+int bdrv_eject(BlockDriverState *bs, int eject_flag);
 void bdrv_set_change_cb(BlockDriverState *bs,
                         void (*change_cb)(void *opaque), void *opaque);
 void bdrv_get_format(BlockDriverState *bs, char *buf, int buf_size);
 BlockDriverState *bdrv_find(const char *name);
-void bdrv_iterate(void (*it)(void *opaque, const char *name), void *opaque);
+void bdrv_iterate(void (*it)(void *opaque, BlockDriverState *bs),
+                  void *opaque);
 int bdrv_is_encrypted(BlockDriverState *bs);
+int bdrv_key_required(BlockDriverState *bs);
 int bdrv_set_key(BlockDriverState *bs, const char *key);
+int bdrv_query_missing_keys(void);
 void bdrv_iterate_format(void (*it)(void *opaque, const char *name),
                          void *opaque);
 const char *bdrv_get_device_name(BlockDriverState *bs);
@@ -151,6 +141,7 @@ int bdrv_write_compressed(BlockDriverState *bs, int64_t sector_num,
                           const uint8_t *buf, int nb_sectors);
 int bdrv_get_info(BlockDriverState *bs, BlockDriverInfo *bdi);
 
+const char *bdrv_get_encrypted_filename(BlockDriverState *bs);
 void bdrv_get_backing_filename(BlockDriverState *bs,
                                char *filename, int filename_size);
 int bdrv_snapshot_create(BlockDriverState *bs,
@@ -161,12 +152,17 @@ int bdrv_snapshot_delete(BlockDriverState *bs, const char *snapshot_id);
 int bdrv_snapshot_list(BlockDriverState *bs,
                        QEMUSnapshotInfo **psn_info);
 char *bdrv_snapshot_dump(char *buf, int buf_size, QEMUSnapshotInfo *sn);
-int bdrv_ioctl(BlockDriverState *bs, unsigned long int req, void *buf);
 
 char *get_human_readable_size(char *buf, int buf_size, int64_t size);
 int path_is_absolute(const char *path);
 void path_combine(char *dest, int dest_size,
                   const char *base_path,
                   const char *filename);
+
+int bdrv_save_vmstate(BlockDriverState *bs, const uint8_t *buf,
+                      int64_t pos, int size);
+
+int bdrv_load_vmstate(BlockDriverState *bs, uint8_t *buf,
+                      int64_t pos, int size);
 
 #endif
