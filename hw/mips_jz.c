@@ -2200,7 +2200,7 @@ static struct jz4740_lcdc_s *jz4740_lcdc_init(struct jz_state_s *soc,
         cpu_register_io_memory(0, jz4740_lcdc_readfn, jz4740_lcdc_writefn, s);
     cpu_register_physical_memory(s->base, 0x10000, iomemtype);
 
-    s->console = graphic_console_init(s->state, jz4740_lcd_update_display,
+    s->console = graphic_console_init(jz4740_lcd_update_display,
                                       jz4740_lcd_invalidate_display,
                                       NULL, NULL, s);
     switch (ds_get_bits_per_pixel(s->state))
