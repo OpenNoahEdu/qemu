@@ -2097,27 +2097,12 @@ static CPUWriteMemoryFunc *jz4740_lcdc_writefn[] = {
 #include "mips_jz_glue.h"
 #undef JZ4740_LCD_PANEL
 
-static void *jz4740_lcd_get_buffer(struct jz4740_lcdc_s *s,
-                                   target_phys_addr_t addr)
-{
-    uint32_t pd;
-
-    pd = cpu_get_physical_page_desc(addr);
-    if ((pd & ~TARGET_PAGE_MASK) != IO_MEM_RAM)
-        /* TODO */
-        cpu_abort(cpu_single_env, "%s: framebuffer outside RAM!\n",
-                  __FUNCTION__);
-    else
-        return phys_ram_base +
-            (pd & TARGET_PAGE_MASK) + (addr & ~TARGET_PAGE_MASK);
-}
-
 static void jz4740_lcd_update_display(void *opaque)
 {
     struct jz4740_lcdc_s *s = (struct jz4740_lcdc_s *) opaque;
 
     uint8_t *src, *dest;
-    struct jz_fb_descriptor *fb_des;
+    struct jz_fb_descriptor fb_des;
 
     int step, linesize;
     int y;
@@ -2131,17 +2116,18 @@ static void jz4740_lcd_update_display(void *opaque)
     if (!s->lcdda0)
         return;
 
-    fb_des = (struct jz_fb_descriptor *) jz4740_lcd_get_buffer(s, s->lcdda0);
-    s->lcdda0 = fb_des->fdadr;
-    s->lcdsa0 = fb_des->fsadr;
-    s->lcdfid0 = fb_des->fidr;
-    s->lcdcmd0 = fb_des->ldcmd;
-
-    src = (uint8_t *) jz4740_lcd_get_buffer(s, fb_des->fsadr);
+    cpu_physical_memory_read(s->lcdda0, (uint8_t *)(&fb_des), sizeof(fb_des));
+    s->lcdda0 = fb_des.fdadr;
+    s->lcdsa0 = fb_des.fsadr;
+    s->lcdfid0 = fb_des.fidr;
+    s->lcdcmd0 = fb_des.ldcmd;
+    
+    uint16_t palette[256];
+    cpu_physical_memory_read(fb_des.fsadr, (uint8_t *)(palette), sizeof(palette));
     if (s->lcdcmd0 & (0x1 << 28))
     {
         /*palette */
-        memcpy(s->palette, src, sizeof(s->palette));
+        memcpy(s->palette, palette, sizeof(s->palette));
         return;
     }
 
@@ -2160,13 +2146,14 @@ static void jz4740_lcd_update_display(void *opaque)
 
     //printf("s->width %d s->height  %d s->bpp %d linesize %d \n",s->width,s->height ,s->bpp,linesize);
 
+    src = malloc(step);
     for (y = 0; y < s->height; y++)
     {
+        cpu_physical_memory_read(fb_des.fsadr + y * step, src, step);
         s->line_fn(dest, src, s->width, s->palette);
-        //memcpy(dest,src,step);
-        src += step;
         dest += linesize;
     }
+    free(src);
 
 
     dpy_update(s->state, 0, 0, s->width, s->height);
@@ -2264,29 +2251,10 @@ static inline void jz4740_dma_transfer(struct jz4740_dma_s *s,
                                        target_phys_addr_t src,
                                        target_phys_addr_t dest, uint32_t len)
 {
-    uint32_t pd_src, pd_dest;
-    uint8_t *sr, *de;
-
-    pd_src = cpu_get_physical_page_desc(src);
-    if ((pd_src & ~TARGET_PAGE_MASK) != IO_MEM_RAM)
-        /* TODO */
-        cpu_abort(cpu_single_env, "%s: DMA source address "JZ_FMT_plx" outside RAM!\n",
-                  __FUNCTION__, src);
-    else
-        sr = phys_ram_base +
-            (pd_src & TARGET_PAGE_MASK) + (src & ~TARGET_PAGE_MASK);
-
-    pd_dest = cpu_get_physical_page_desc(dest);
-    if ((pd_dest & ~TARGET_PAGE_MASK) != IO_MEM_RAM)
-        /* TODO */
-        cpu_abort(cpu_single_env,
-                  "%s: DMA destination address "JZ_FMT_plx" outside RAM!\n",
-                  __FUNCTION__, dest);
-    else
-        de = phys_ram_base +
-            (pd_dest & TARGET_PAGE_MASK) + (dest & ~TARGET_PAGE_MASK);
-
-    memcpy(de, sr, len);
+    uint8_t *buffer = malloc(len);
+    cpu_physical_memory_read(src, buffer, len);
+    cpu_physical_memory_write(dest, buffer, len);
+    free(buffer);
 }
 
 static inline uint32_t jz4740_dma_unit_size(struct jz4740_dma_s *s,
@@ -2335,9 +2303,8 @@ static inline void jz4740_dma_ndrun(struct jz4740_dma_s *s, int channel)
         /*descriptor transfer */
 static inline void jz4740_dma_drun(struct jz4740_dma_s *s, int channel)
 {
-    struct jz4740_desc_s *desc;
+    struct jz4740_desc_s desc;
     target_phys_addr_t desc_phy;
-    uint32_t pd;
 
     desc_phy = s->dda[channel];
     if (desc_phy & 0xf)
@@ -2345,66 +2312,39 @@ static inline void jz4740_dma_drun(struct jz4740_dma_s *s, int channel)
                   "jz4740_dma_drun descriptor address " JZ_FMT_plx
                   " must be 4 bytes aligned \n", desc_phy);
 
-    pd = cpu_get_physical_page_desc(desc_phy);
-    if ((pd & ~TARGET_PAGE_MASK) != IO_MEM_RAM)
-        cpu_abort(cpu_single_env,
-                  "%s: DMA descriptor address " JZ_FMT_plx " outside RAM!\n",
-                  __FUNCTION__, desc_phy);
-    else
-        desc = (struct jz4740_desc_s *) (phys_ram_base +
-                                         (pd & TARGET_PAGE_MASK) +
-                                         (desc_phy & ~TARGET_PAGE_MASK));
-
-    if (!desc)
-        cpu_abort(cpu_single_env,
-                  "%s: DMA descriptor %x is NULL!\n", __FUNCTION__,
-                  (uint32_t)desc);
+    cpu_physical_memory_read(desc_phy, (uint8_t *)(&desc), sizeof(desc_phy));
 
     while (1)
     {
-        if ((desc->dcmd & 0x8) && (!(desc->dcmd & 0x10)))
+        if ((desc.dcmd & 0x8) && (!(desc.dcmd & 0x10)))
         {
             /*Stop DMA and set DCSN.INV=1 */
             s->dcs[channel] |= 1 << 6;
             return;
         }
-        jz4740_dma_transfer(s, desc->dtadr, desc->dsadr,
-                            (desc->ddadr & 0xffffff) *
-                            jz4740_dma_unit_size(s, desc->dcmd));
+        jz4740_dma_transfer(s, desc.dtadr, desc.dsadr,
+                            (desc.ddadr & 0xffffff) *
+                            jz4740_dma_unit_size(s, desc.dcmd));
 
-        if ((desc->dcmd) & (1 << 3))
+        if ((desc.dcmd) & (1 << 3))
             /*clear v */
-            desc->dcmd &= ~(1 << 4);
-        if (desc->dcmd & 0x1)
+            desc.dcmd &= ~(1 << 4);
+        if (desc.dcmd & 0x1)
             /*set DCSN.CT=1 */
             s->dcs[channel] |= 0x2;
         else
             /*set DCSN.TT=1 */
             s->dcs[channel] |= 0x8;
 
-        if (desc->dcmd & 0x2)
+        if (desc.dcmd & 0x2)
             qemu_set_irq(s->irq, 1);
 
-        if ((desc->dcmd) & 0x1)
+        if ((desc.dcmd) & 0x1)
         {
             /*fetch next descriptor */
             desc_phy = s->dda[channel] & 0xfffff000;
-            desc_phy += (desc->dtadr & 0xff000000) >> 24;
-            pd = cpu_get_physical_page_desc(desc_phy);
-            if ((pd & ~TARGET_PAGE_MASK) != IO_MEM_RAM)
-                cpu_abort(cpu_single_env,
-                          "%s: DMA descriptor address "JZ_FMT_plx" outside RAM!\n",
-                          __FUNCTION__, desc_phy);
-            else
-                desc = (struct jz4740_desc_s *) (phys_ram_base +
-                                                 (pd & TARGET_PAGE_MASK)
-                                                 +
-                                                 (desc_phy &
-                                                  ~TARGET_PAGE_MASK));
-            if (!desc)
-                cpu_abort(cpu_single_env,
-                          "%s: DMA descriptor %x is NULL!\n",
-                          __FUNCTION__, (uint32_t) desc);
+            desc_phy += (desc.dtadr & 0xff000000) >> 24;
+            cpu_physical_memory_read(desc_phy, (uint8_t *)(&desc), sizeof(desc_phy));
         }
         else
             break;

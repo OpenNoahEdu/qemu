@@ -156,7 +156,7 @@ static int pavo_nand_read_page(struct mips_pavo_s *s,uint8_t *buf, uint16_t page
 static int pavo_boot_from_nand(struct mips_pavo_s *s)
 {
 	uint32_t len;
-	uint8_t nand_page[0x800],*load_dest;
+	uint8_t nand_page[0x800];
 	uint32_t nand_pages,i;
 
 	//int fd;
@@ -164,17 +164,13 @@ static int pavo_boot_from_nand(struct mips_pavo_s *s)
 
 	len = 0x2000; /*8K*/
 	
-	/*put the first page into internal ram*/
-	load_dest = phys_ram_base;
-	
 	nand_pages = len/0x800;
 	//fd = open("u-boot.bin", O_RDWR | O_CREAT);
 	for (i=0;i<nand_pages;i++)
 	{
 		pavo_nand_read_page(s,nand_page,i*0x800);
-		memcpy(load_dest,nand_page,0x800);
+		cpu_physical_memory_write_rom(i * 0x800, nand_page, 0x800);
 		//write(fd,nand_page,0x800);
-		load_dest += 0x800;
 	}
 	s->soc->env->active_tc.PC = 0x80000004;
 
