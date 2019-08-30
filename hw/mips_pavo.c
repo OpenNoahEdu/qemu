@@ -225,3 +225,10 @@ QEMUMachine mips_pavo_machine = {
     .ram_require = (JZ4740_SRAM_SIZE + PAVO_RAM_SIZE) | RAMSIZE_FIXED,
     .nodisk_ok = 1,
 };
+
+static void mips_pavo_machine_init(void)
+{
+    qemu_register_machine(&mips_pavo_machine);
+}
+
+machine_init(mips_pavo_machine_init);
