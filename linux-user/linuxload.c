@@ -96,7 +96,6 @@ static int prepare_binprm(struct linux_binprm *bprm)
 	}
     }
 
-    memset(bprm->buf, 0, sizeof(bprm->buf));
     retval = lseek(bprm->fd, 0L, SEEK_SET);
     if(retval >= 0) {
         retval = read(bprm->fd, bprm->buf, 128);
@@ -165,7 +164,7 @@ int loader_exec(const char * filename, char ** argv, char ** envp,
 
     bprm->p = TARGET_PAGE_SIZE*MAX_ARG_PAGES-sizeof(unsigned int);
     for (i=0 ; i<MAX_ARG_PAGES ; i++)       /* clear page-table */
-            bprm->page[i] = 0;
+            bprm->page[i] = NULL;
     retval = open(filename, O_RDONLY);
     if (retval < 0)
         return retval;

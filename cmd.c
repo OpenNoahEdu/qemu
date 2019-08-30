@@ -20,12 +20,12 @@
 #include <string.h>
 #include <ctype.h>
 #include <errno.h>
+#include <sys/time.h>
+#include <getopt.h>
 
 #include "cmd.h"
 
 #define _(x)	x	/* not gettext support yet */
-
-extern int optind;
 
 /* from libxcmd/command.c */
 
@@ -283,6 +283,26 @@ fetchline(void)
 }
 #endif
 
+static char *qemu_strsep(char **input, const char *delim)
+{
+    char *result = *input;
+    if (result != NULL) {
+        char *p = result;
+        for (p = result; *p != '\0'; p++) {
+            if (strchr(delim, *p)) {
+                break;
+            }
+        }
+        if (*p == '\0') {
+            *input = NULL;
+        } else {
+            *p = '\0';
+            *input = p + 1;
+        }
+    }
+    return result;
+}
+
 char **
 breakline(
 	char	*input,
@@ -292,7 +312,7 @@ breakline(
 	char	*p;
 	char	**rval = calloc(sizeof(char *), 1);
 
-	while (rval && (p = strsep(&input, " ")) != NULL) {
+	while (rval && (p = qemu_strsep(&input, " ")) != NULL) {
 		if (!*p)
 			continue;
 		c++;

@@ -7,10 +7,12 @@
  * This work is licensed under the terms of the GNU GPL, version 2 or later.
  * See the COPYING file in the top-level directory.
  */
+#include <sys/time.h>
 #include <sys/types.h>
 #include <stdarg.h>
 #include <stdio.h>
 #include <getopt.h>
+#include <libgen.h>
 
 #include "qemu-common.h"
 #include "block_int.h"
@@ -24,6 +26,26 @@ char *progname;
 static BlockDriverState *bs;
 
 static int misalign;
+
+/*
+ * Parse the pattern argument to various sub-commands.
+ *
+ * Because the pattern is used as an argument to memset it must evaluate
+ * to an unsigned integer that fits into a single byte.
+ */
+static int parse_pattern(const char *arg)
+{
+	char *endptr = NULL;
+	long pattern;
+
+	pattern = strtol(arg, &endptr, 0);
+	if (pattern < 0 || pattern > UCHAR_MAX || *endptr != '\0') {
+		printf("%s is not a valid pattern byte\n", arg);
+		return -1;
+	}
+
+	return pattern;
+}
 
 /*
  * Memory allocation helpers.
@@ -244,8 +266,6 @@ static int do_aio_writev(QEMUIOVector *qiov, int64_t offset, int *total)
 }
 
 
-static const cmdinfo_t read_cmd;
-
 static void
 read_help(void)
 {
@@ -268,6 +288,19 @@ read_help(void)
 " -v, -- dump buffer to standard output\n"
 "\n");
 }
+
+static int read_f(int argc, char **argv);
+
+static const cmdinfo_t read_cmd = {
+	.name		= "read",
+	.altname	= "r",
+	.cfunc		= read_f,
+	.argmin		= 2,
+	.argmax		= -1,
+	.args		= "[-abCpqv] [-P pattern [-s off] [-l len]] off len",
+	.oneline	= "reads a number of bytes at a specified offset",
+	.help		= read_help,
+};
 
 static int
 read_f(int argc, char **argv)
@@ -304,7 +337,9 @@ read_f(int argc, char **argv)
 			break;
 		case 'P':
 			Pflag = 1;
-			pattern = atoi(optarg);
+			pattern = parse_pattern(optarg);
+			if (pattern < 0)
+				return 0;
 			break;
 		case 'q':
 			qflag = 1;
@@ -415,19 +450,6 @@ out:
 	return 0;
 }
 
-static const cmdinfo_t read_cmd = {
-	.name		= "read",
-	.altname	= "r",
-	.cfunc		= read_f,
-	.argmin		= 2,
-	.argmax		= -1,
-	.args		= "[-abCpqv] [-P pattern [-s off] [-l len]] off len",
-	.oneline	= "reads a number of bytes at a specified offset",
-	.help		= read_help,
-};
-
-static const cmdinfo_t readv_cmd;
-
 static void
 readv_help(void)
 {
@@ -447,6 +469,18 @@ readv_help(void)
 " -q, -- quite mode, do not show I/O statistics\n"
 "\n");
 }
+
+static int readv_f(int argc, char **argv);
+
+static const cmdinfo_t readv_cmd = {
+	.name		= "readv",
+	.cfunc		= readv_f,
+	.argmin		= 2,
+	.argmax		= -1,
+	.args		= "[-Cqv] [-P pattern ] off len [len..]",
+	.oneline	= "reads a number of bytes at a specified offset",
+	.help		= readv_help,
+};
 
 static int
 readv_f(int argc, char **argv)
@@ -469,7 +503,9 @@ readv_f(int argc, char **argv)
 			break;
 		case 'P':
 			Pflag = 1;
-			pattern = atoi(optarg);
+			pattern = parse_pattern(optarg);
+			if (pattern < 0)
+				return 0;
 			break;
 		case 'q':
 			qflag = 1;
@@ -537,18 +573,6 @@ out:
 	return 0;
 }
 
-static const cmdinfo_t readv_cmd = {
-	.name		= "readv",
-	.cfunc		= readv_f,
-	.argmin		= 2,
-	.argmax		= -1,
-	.args		= "[-Cqv] [-P pattern ] off len [len..]",
-	.oneline	= "reads a number of bytes at a specified offset",
-	.help		= readv_help,
-};
-
-static const cmdinfo_t write_cmd;
-
 static void
 write_help(void)
 {
@@ -568,6 +592,19 @@ write_help(void)
 " -q, -- quite mode, do not show I/O statistics\n"
 "\n");
 }
+
+static int write_f(int argc, char **argv);
+
+static const cmdinfo_t write_cmd = {
+	.name		= "write",
+	.altname	= "w",
+	.cfunc		= write_f,
+	.argmin		= 2,
+	.argmax		= -1,
+	.args		= "[-abCpq] [-P pattern ] off len",
+	.oneline	= "writes a number of bytes at a specified offset",
+	.help		= write_help,
+};
 
 static int
 write_f(int argc, char **argv)
@@ -594,7 +631,9 @@ write_f(int argc, char **argv)
 			pflag = 1;
 			break;
 		case 'P':
-			pattern = atoi(optarg);
+			pattern = parse_pattern(optarg);
+			if (pattern < 0)
+				return 0;
 			break;
 		case 'q':
 			qflag = 1;
@@ -668,19 +707,6 @@ out:
 	return 0;
 }
 
-static const cmdinfo_t write_cmd = {
-	.name		= "write",
-	.altname	= "w",
-	.cfunc		= write_f,
-	.argmin		= 2,
-	.argmax		= -1,
-	.args		= "[-abCpq] [-P pattern ] off len",
-	.oneline	= "writes a number of bytes at a specified offset",
-	.help		= write_help,
-};
-
-static const cmdinfo_t writev_cmd;
-
 static void
 writev_help(void)
 {
@@ -698,6 +724,18 @@ writev_help(void)
 " -q, -- quite mode, do not show I/O statistics\n"
 "\n");
 }
+
+static int writev_f(int argc, char **argv);
+
+static const cmdinfo_t writev_cmd = {
+	.name		= "writev",
+	.cfunc		= writev_f,
+	.argmin		= 2,
+	.argmax		= -1,
+	.args		= "[-Cq] [-P pattern ] off len [len..]",
+	.oneline	= "writes a number of bytes at a specified offset",
+	.help		= writev_help,
+};
 
 static int
 writev_f(int argc, char **argv)
@@ -721,7 +759,9 @@ writev_f(int argc, char **argv)
 			qflag = 1;
 			break;
 		case 'P':
-			pattern = atoi(optarg);
+			pattern = parse_pattern(optarg);
+			if (pattern < 0)
+				return 0;
 			break;
 		default:
 			return command_usage(&writev_cmd);
@@ -767,16 +807,6 @@ out:
 	return 0;
 }
 
-static const cmdinfo_t writev_cmd = {
-	.name		= "writev",
-	.cfunc		= writev_f,
-	.argmin		= 2,
-	.argmax		= -1,
-	.args		= "[-Cq] [-P pattern ] off len [len..]",
-	.oneline	= "writes a number of bytes at a specified offset",
-	.help		= writev_help,
-};
-
 struct aio_ctx {
 	QEMUIOVector qiov;
 	int64_t offset;
@@ -815,8 +845,6 @@ out:
 	qemu_io_free(ctx->buf);
 	free(ctx);
 }
-
-static const cmdinfo_t aio_read_cmd;
 
 static void
 aio_read_done(void *opaque, int ret)
@@ -881,6 +909,18 @@ aio_read_help(void)
 "\n");
 }
 
+static int aio_read_f(int argc, char **argv);
+
+static const cmdinfo_t aio_read_cmd = {
+	.name		= "aio_read",
+	.cfunc		= aio_read_f,
+	.argmin		= 2,
+	.argmax		= -1,
+	.args		= "[-Cqv] [-P pattern ] off len [len..]",
+	.oneline	= "asynchronously reads a number of bytes",
+	.help		= aio_read_help,
+};
+
 static int
 aio_read_f(int argc, char **argv)
 {
@@ -895,7 +935,9 @@ aio_read_f(int argc, char **argv)
 			break;
 		case 'P':
 			ctx->Pflag = 1;
-			ctx->pattern = atoi(optarg);
+			ctx->pattern = parse_pattern(optarg);
+			if (ctx->pattern < 0)
+				return 0;
 			break;
 		case 'q':
 			ctx->qflag = 1;
@@ -944,18 +986,6 @@ aio_read_f(int argc, char **argv)
 	return 0;
 }
 
-static const cmdinfo_t aio_read_cmd = {
-	.name		= "aio_read",
-	.cfunc		= aio_read_f,
-	.argmin		= 2,
-	.argmax		= -1,
-	.args		= "[-Cqv] [-P pattern ] off len [len..]",
-	.oneline	= "asynchronously reads a number of bytes",
-	.help		= aio_read_help,
-};
-
-static const cmdinfo_t aio_write_cmd;
-
 static void
 aio_write_help(void)
 {
@@ -977,6 +1007,17 @@ aio_write_help(void)
 "\n");
 }
 
+static int aio_write_f(int argc, char **argv);
+
+static const cmdinfo_t aio_write_cmd = {
+	.name		= "aio_write",
+	.cfunc		= aio_write_f,
+	.argmin		= 2,
+	.argmax		= -1,
+	.args		= "[-Cq] [-P pattern ] off len [len..]",
+	.oneline	= "asynchronously writes a number of bytes",
+	.help		= aio_write_help,
+};
 
 static int
 aio_write_f(int argc, char **argv)
@@ -995,7 +1036,9 @@ aio_write_f(int argc, char **argv)
 			ctx->qflag = 1;
 			break;
 		case 'P':
-			pattern = atoi(optarg);
+			pattern = parse_pattern(optarg);
+			if (pattern < 0)
+				return 0;
 			break;
 		default:
 			free(ctx);
@@ -1037,16 +1080,6 @@ aio_write_f(int argc, char **argv)
 
 	return 0;
 }
-
-static const cmdinfo_t aio_write_cmd = {
-	.name		= "aio_write",
-	.cfunc		= aio_write_f,
-	.argmin		= 2,
-	.argmax		= -1,
-	.args		= "[-Cq] [-P pattern ] off len [len..]",
-	.oneline	= "asynchronously writes a number of bytes",
-	.help		= aio_write_help,
-};
 
 static int
 aio_flush_f(int argc, char **argv)
@@ -1170,11 +1203,10 @@ static int
 alloc_f(int argc, char **argv)
 {
 	int64_t offset;
-	int nb_sectors;
+	int nb_sectors, remaining;
 	char s1[64];
-	int num;
+	int num, sum_alloc;
 	int ret;
-	const char *retstr;
 
 	offset = cvtnum(argv[1]);
 	if (offset & 0x1ff) {
@@ -1188,16 +1220,23 @@ alloc_f(int argc, char **argv)
 	else
 		nb_sectors = 1;
 
-	ret = bdrv_is_allocated(bs, offset >> 9, nb_sectors, &num);
+	remaining = nb_sectors;
+	sum_alloc = 0;
+	while (remaining) {
+		ret = bdrv_is_allocated(bs, offset >> 9, nb_sectors, &num);
+		remaining -= num;
+		if (ret) {
+			sum_alloc += num;
+		}
+	}
 
 	cvtstr(offset, s1, sizeof(s1));
 
-	retstr = ret ? "allocated" : "not allocated";
 	if (nb_sectors == 1)
-		printf("sector %s at offset %s\n", retstr, s1);
+		printf("sector allocated at offset %s\n", s1);
 	else
-		printf("%d/%d sectors %s at offset %s\n",
-			num, nb_sectors, retstr, s1);
+		printf("%d/%d sectors allocated at offset %s\n",
+			sum_alloc, nb_sectors, s1);
 	return 0;
 }
 
@@ -1272,7 +1311,19 @@ open_help(void)
 "\n");
 }
 
-static const cmdinfo_t open_cmd;
+static int open_f(int argc, char **argv);
+
+static const cmdinfo_t open_cmd = {
+	.name		= "open",
+	.altname	= "o",
+	.cfunc		= open_f,
+	.argmin		= 1,
+	.argmax		= -1,
+	.flags		= CMD_NOFILE_OK,
+	.args		= "[-Crsn] [path]",
+	.oneline	= "open the file specified by path",
+	.help		= open_help,
+};
 
 static int
 open_f(int argc, char **argv)
@@ -1315,18 +1366,6 @@ open_f(int argc, char **argv)
 	return openfile(argv[optind], flags, growable);
 }
 
-static const cmdinfo_t open_cmd = {
-	.name		= "open",
-	.altname	= "o",
-	.cfunc		= open_f,
-	.argmin		= 1,
-	.argmax		= -1,
-	.flags		= CMD_NOFILE_OK,
-	.args		= "[-Crsn] [path]",
-	.oneline	= "open the file specified by path",
-	.help		= open_help,
-};
-
 static int
 init_args_command(
         int     index)
@@ -1363,6 +1402,7 @@ static void usage(const char *name)
 "  -n, --nocache        disable host cache\n"
 "  -g, --growable       allow file to grow (only applies to protocols)\n"
 "  -m, --misalign       misalign allocations for O_DIRECT\n"
+"  -k, --native-aio     use kernel AIO implementation (on Linux only)\n"
 "  -h, --help           display this help and exit\n"
 "  -V, --version        output version information and exit\n"
 "\n",
@@ -1374,19 +1414,20 @@ int main(int argc, char **argv)
 {
 	int readonly = 0;
 	int growable = 0;
-	const char *sopt = "hVc:Crsnmg";
+	const char *sopt = "hVc:Crsnmgk";
 	struct option lopt[] = {
-		{ "help", 0, 0, 'h' },
-		{ "version", 0, 0, 'V' },
-		{ "offset", 1, 0, 'o' },
-		{ "cmd", 1, 0, 'c' },
-		{ "create", 0, 0, 'C' },
-		{ "read-only", 0, 0, 'r' },
-		{ "snapshot", 0, 0, 's' },
-		{ "nocache", 0, 0, 'n' },
-		{ "misalign", 0, 0, 'm' },
-		{ "growable", 0, 0, 'g' },
-		{ NULL, 0, 0, 0 }
+		{ "help", 0, NULL, 'h' },
+		{ "version", 0, NULL, 'V' },
+		{ "offset", 1, NULL, 'o' },
+		{ "cmd", 1, NULL, 'c' },
+		{ "create", 0, NULL, 'C' },
+		{ "read-only", 0, NULL, 'r' },
+		{ "snapshot", 0, NULL, 's' },
+		{ "nocache", 0, NULL, 'n' },
+		{ "misalign", 0, NULL, 'm' },
+		{ "growable", 0, NULL, 'g' },
+		{ "native-aio", 0, NULL, 'k' },
+		{ NULL, 0, NULL, 0 }
 	};
 	int c;
 	int opt_index = 0;
@@ -1416,6 +1457,9 @@ int main(int argc, char **argv)
 			break;
 		case 'g':
 			growable = 1;
+			break;
+		case 'k':
+			flags |= BDRV_O_NATIVE_AIO;
 			break;
 		case 'V':
 			printf("%s version %s\n", progname, VERSION);

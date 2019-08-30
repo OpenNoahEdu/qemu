@@ -15,7 +15,9 @@
 #define _QEMU_VIRTIO_H
 
 #include "hw.h"
+#include "net.h"
 #include "qdev.h"
+#include "sysemu.h"
 
 /* from Linux's linux/virtio_config.h */
 
@@ -29,7 +31,7 @@
 /* We've given up on this device. */
 #define VIRTIO_CONFIG_S_FAILED          0x80
 
-/* We notify when the ring is completely used, even if the guest is supressing
+/* We notify when the ring is completely used, even if the guest is suppressing
  * callbacks */
 #define VIRTIO_F_NOTIFY_ON_EMPTY        24
 /* We support indirect buffer descriptors */
@@ -161,9 +163,11 @@ void virtio_bind_device(VirtIODevice *vdev, const VirtIOBindings *binding,
                         void *opaque);
 
 /* Base devices.  */
-VirtIODevice *virtio_blk_init(DeviceState *dev);
-VirtIODevice *virtio_net_init(DeviceState *dev);
+VirtIODevice *virtio_blk_init(DeviceState *dev, DriveInfo *dinfo);
+VirtIODevice *virtio_net_init(DeviceState *dev, NICConf *conf);
 VirtIODevice *virtio_console_init(DeviceState *dev);
 VirtIODevice *virtio_balloon_init(DeviceState *dev);
+
+void virtio_net_exit(VirtIODevice *vdev);
 
 #endif

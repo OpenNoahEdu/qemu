@@ -39,7 +39,7 @@
 #define FW_CFG_SIZE 2
 
 typedef struct _FWCfgEntry {
-    uint16_t len;
+    uint32_t len;
     uint8_t *data;
     void *callback_opaque;
     FWCfgCallback callback;
@@ -48,7 +48,7 @@ typedef struct _FWCfgEntry {
 typedef struct _FWCfgState {
     FWCfgEntry entries[2][FW_CFG_MAX_ENTRY];
     uint16_t cur_entry;
-    uint16_t cur_offset;
+    uint32_t cur_offset;
 } FWCfgState;
 
 static void fw_cfg_write(FWCfgState *s, uint8_t value)
@@ -133,25 +133,25 @@ static void fw_cfg_mem_writew(void *opaque, target_phys_addr_t addr,
     fw_cfg_select(opaque, (uint16_t)value);
 }
 
-static CPUReadMemoryFunc *fw_cfg_ctl_mem_read[3] = {
+static CPUReadMemoryFunc * const fw_cfg_ctl_mem_read[3] = {
     NULL,
     NULL,
     NULL,
 };
 
-static CPUWriteMemoryFunc *fw_cfg_ctl_mem_write[3] = {
+static CPUWriteMemoryFunc * const fw_cfg_ctl_mem_write[3] = {
     NULL,
     fw_cfg_mem_writew,
     NULL,
 };
 
-static CPUReadMemoryFunc *fw_cfg_data_mem_read[3] = {
+static CPUReadMemoryFunc * const fw_cfg_data_mem_read[3] = {
     fw_cfg_mem_readb,
     NULL,
     NULL,
 };
 
-static CPUWriteMemoryFunc *fw_cfg_data_mem_write[3] = {
+static CPUWriteMemoryFunc * const fw_cfg_data_mem_write[3] = {
     fw_cfg_mem_writeb,
     NULL,
     NULL,
@@ -164,28 +164,53 @@ static void fw_cfg_reset(void *opaque)
     fw_cfg_select(s, 0);
 }
 
-static void fw_cfg_save(QEMUFile *f, void *opaque)
+/* Save restore 32 bit int as uint16_t
+   This is a Big hack, but it is how the old state did it.
+   Or we broke compatibility in the state, or we can't use struct tm
+ */
+
+static int get_uint32_as_uint16(QEMUFile *f, void *pv, size_t size)
 {
-    FWCfgState *s = opaque;
-
-    qemu_put_be16s(f, &s->cur_entry);
-    qemu_put_be16s(f, &s->cur_offset);
-}
-
-static int fw_cfg_load(QEMUFile *f, void *opaque, int version_id)
-{
-    FWCfgState *s = opaque;
-
-    if (version_id > 1)
-        return -EINVAL;
-
-    qemu_get_be16s(f, &s->cur_entry);
-    qemu_get_be16s(f, &s->cur_offset);
-
+    uint32_t *v = pv;
+    *v = qemu_get_be16(f);
     return 0;
 }
 
-int fw_cfg_add_bytes(void *opaque, uint16_t key, uint8_t *data, uint16_t len)
+static void put_unused(QEMUFile *f, void *pv, size_t size)
+{
+    fprintf(stderr, "uint32_as_uint16 is only used for backward compatibilty.\n");
+    fprintf(stderr, "This functions shouldn't be called.\n");
+}
+
+static const VMStateInfo vmstate_hack_uint32_as_uint16 = {
+    .name = "int32_as_uint16",
+    .get  = get_uint32_as_uint16,
+    .put  = put_unused,
+};
+
+#define VMSTATE_UINT16_HACK(_f, _s, _t)                                    \
+    VMSTATE_SINGLE_TEST(_f, _s, _t, 0, vmstate_hack_uint32_as_uint16, uint32_t)
+
+
+static bool is_version_1(void *opaque, int version_id)
+{
+    return version_id == 1;
+}
+
+static const VMStateDescription vmstate_fw_cfg = {
+    .name = "fw_cfg",
+    .version_id = 2,
+    .minimum_version_id = 1,
+    .minimum_version_id_old = 1,
+    .fields      = (VMStateField []) {
+        VMSTATE_UINT16(cur_entry, FWCfgState),
+        VMSTATE_UINT16_HACK(cur_offset, FWCfgState, is_version_1),
+        VMSTATE_UINT32_V(cur_offset, FWCfgState, 2),
+        VMSTATE_END_OF_LIST()
+    }
+};
+
+int fw_cfg_add_bytes(void *opaque, uint16_t key, uint8_t *data, uint32_t len)
 {
     FWCfgState *s = opaque;
     int arch = !!(key & FW_CFG_ARCH_LOCAL);
@@ -279,11 +304,11 @@ void *fw_cfg_init(uint32_t ctl_port, uint32_t data_port,
     fw_cfg_add_bytes(s, FW_CFG_UUID, qemu_uuid, 16);
     fw_cfg_add_i16(s, FW_CFG_NOGRAPHIC, (uint16_t)(display_type == DT_NOGRAPHIC));
     fw_cfg_add_i16(s, FW_CFG_NB_CPUS, (uint16_t)smp_cpus);
+    fw_cfg_add_i16(s, FW_CFG_MAX_CPUS, (uint16_t)max_cpus);
     fw_cfg_add_i16(s, FW_CFG_BOOT_MENU, (uint16_t)boot_menu);
 
-    register_savevm("fw_cfg", -1, 1, fw_cfg_save, fw_cfg_load, s);
+    vmstate_register(-1, &vmstate_fw_cfg, s);
     qemu_register_reset(fw_cfg_reset, s);
-    fw_cfg_reset(s);
 
     return s;
 }

@@ -32,7 +32,7 @@ struct BusInfo system_bus_info = {
 void sysbus_connect_irq(SysBusDevice *dev, int n, qemu_irq irq)
 {
     assert(n >= 0 && n < dev->num_irq);
-    dev->irqs[n] = 0;
+    dev->irqs[n] = NULL;
     if (dev->irqp[n]) {
         *dev->irqp[n] = irq;
     }
@@ -105,11 +105,11 @@ void sysbus_init_mmio_cb(SysBusDevice *dev, target_phys_addr_t size,
     dev->mmio[n].cb = cb;
 }
 
-static void sysbus_device_init(DeviceState *dev, DeviceInfo *base)
+static int sysbus_device_init(DeviceState *dev, DeviceInfo *base)
 {
     SysBusDeviceInfo *info = container_of(base, SysBusDeviceInfo, qdev);
 
-    info->init(sysbus_from_qdev(dev));
+    return info->init(sysbus_from_qdev(dev));
 }
 
 void sysbus_register_withprop(SysBusDeviceInfo *info)
@@ -143,7 +143,7 @@ DeviceState *sysbus_create_varargs(const char *name,
 
     dev = qdev_create(NULL, name);
     s = sysbus_from_qdev(dev);
-    qdev_init(dev);
+    qdev_init_nofail(dev);
     if (addr != (target_phys_addr_t)-1) {
         sysbus_mmio_map(s, 0, addr);
     }

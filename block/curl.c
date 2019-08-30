@@ -83,17 +83,17 @@ static int curl_sock_cb(CURL *curl, curl_socket_t fd, int action,
     dprintf("CURL (AIO): Sock action %d on fd %d\n", action, fd);
     switch (action) {
         case CURL_POLL_IN:
-            qemu_aio_set_fd_handler(fd, curl_multi_do, NULL, NULL, s);
+            qemu_aio_set_fd_handler(fd, curl_multi_do, NULL, NULL, NULL, s);
             break;
         case CURL_POLL_OUT:
-            qemu_aio_set_fd_handler(fd, NULL, curl_multi_do, NULL, s);
+            qemu_aio_set_fd_handler(fd, NULL, curl_multi_do, NULL, NULL, s);
             break;
         case CURL_POLL_INOUT:
             qemu_aio_set_fd_handler(fd, curl_multi_do,
-                                    curl_multi_do, NULL, s);
+                                    curl_multi_do, NULL, NULL, s);
             break;
         case CURL_POLL_REMOVE:
-            qemu_aio_set_fd_handler(fd, NULL, NULL, NULL, NULL);
+            qemu_aio_set_fd_handler(fd, NULL, NULL, NULL, NULL, NULL);
             break;
     }
 
@@ -269,7 +269,7 @@ static CURLState *curl_init_state(BDRVCURLState *s)
         return NULL;
     curl_easy_setopt(state->curl, CURLOPT_URL, s->url);
     curl_easy_setopt(state->curl, CURLOPT_TIMEOUT, 5);
-    curl_easy_setopt(state->curl, CURLOPT_WRITEFUNCTION, curl_read_cb);
+    curl_easy_setopt(state->curl, CURLOPT_WRITEFUNCTION, (void *)curl_read_cb);
     curl_easy_setopt(state->curl, CURLOPT_WRITEDATA, (void *)state);
     curl_easy_setopt(state->curl, CURLOPT_PRIVATE, (void *)state);
     curl_easy_setopt(state->curl, CURLOPT_AUTOREFERER, 1);
@@ -358,11 +358,11 @@ static int curl_open(BlockDriverState *bs, const char *filename, int flags)
     // Get file size
 
     curl_easy_setopt(state->curl, CURLOPT_NOBODY, 1);
-    curl_easy_setopt(state->curl, CURLOPT_WRITEFUNCTION, curl_size_cb);
+    curl_easy_setopt(state->curl, CURLOPT_WRITEFUNCTION, (void *)curl_size_cb);
     if (curl_easy_perform(state->curl))
         goto out;
     curl_easy_getinfo(state->curl, CURLINFO_CONTENT_LENGTH_DOWNLOAD, &d);
-    curl_easy_setopt(state->curl, CURLOPT_WRITEFUNCTION, curl_read_cb);
+    curl_easy_setopt(state->curl, CURLOPT_WRITEFUNCTION, (void *)curl_read_cb);
     curl_easy_setopt(state->curl, CURLOPT_NOBODY, 0);
     if (d)
         s->len = (size_t)d;

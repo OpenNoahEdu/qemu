@@ -23,8 +23,11 @@
 /* QEMU doesn't strictly need write barriers since everything runs in
  * lock-step.  We'll leave the calls to wmb() in though to make it obvious for
  * KVM or if kqemu gets SMP support.
+ * In any case, we must prevent the compiler from reordering the code.
+ * TODO: we likely need some rmb()/mb() as well.
  */
-#define wmb() do { } while (0)
+
+#define wmb() __asm__ __volatile__("": : :"memory")
 
 typedef struct VRingDesc
 {
@@ -694,6 +697,7 @@ VirtIODevice *virtio_common_init(const char *name, uint16_t device_id,
                                  size_t config_size, size_t struct_size)
 {
     VirtIODevice *vdev;
+    int i;
 
     vdev = qemu_mallocz(struct_size);
 
@@ -703,6 +707,8 @@ VirtIODevice *virtio_common_init(const char *name, uint16_t device_id,
     vdev->queue_sel = 0;
     vdev->config_vector = VIRTIO_NO_VECTOR;
     vdev->vq = qemu_mallocz(sizeof(VirtQueue) * VIRTIO_PCI_QUEUE_MAX);
+    for(i = 0; i < VIRTIO_PCI_QUEUE_MAX; i++)
+        vdev->vq[i].vector = VIRTIO_NO_VECTOR;
 
     vdev->name = name;
     vdev->config_len = config_size;

@@ -182,7 +182,6 @@ static int grow_refcount_table(BlockDriverState *bs, int min_size)
     qcow2_free_clusters(bs, old_table_offset, old_table_size * sizeof(uint64_t));
     return 0;
  fail:
-    qcow2_free_clusters(bs, table_offset, new_table_size2);
     qemu_free(new_table);
     return -EIO;
 }
@@ -192,7 +191,8 @@ static int64_t alloc_refcount_block(BlockDriverState *bs, int64_t cluster_index)
 {
     BDRVQcowState *s = bs->opaque;
     int64_t offset, refcount_block_offset;
-    int ret, refcount_table_index;
+    unsigned int refcount_table_index;
+    int ret;
     uint64_t data64;
     int cache = cache_refcount_updates;
 
@@ -277,7 +277,7 @@ static int update_refcount(BlockDriverState *bs,
     int first_index = -1, last_index = -1;
 
 #ifdef DEBUG_ALLOC2
-    printf("update_refcount: offset=%lld size=%lld addend=%d\n",
+    printf("update_refcount: offset=%" PRId64 " size=%" PRId64 " addend=%d\n",
            offset, length, addend);
 #endif
     if (length <= 0)
@@ -380,7 +380,7 @@ retry:
             goto retry;
     }
 #ifdef DEBUG_ALLOC2
-    printf("alloc_clusters: size=%lld -> %lld\n",
+    printf("alloc_clusters: size=%" PRId64 " -> %" PRId64 "\n",
             size,
             (s->free_cluster_index - nb_clusters) << s->cluster_bits);
 #endif
@@ -513,7 +513,11 @@ int qcow2_update_snapshot_refcount(BlockDriverState *bs,
     l1_size2 = l1_size * sizeof(uint64_t);
     l1_allocated = 0;
     if (l1_table_offset != s->l1_table_offset) {
-        l1_table = qemu_mallocz(align_offset(l1_size2, 512));
+        if (l1_size2 != 0) {
+            l1_table = qemu_mallocz(align_offset(l1_size2, 512));
+        } else {
+            l1_table = NULL;
+        }
         l1_allocated = 1;
         if (bdrv_pread(s->hd, l1_table_offset,
                        l1_table, l1_size2) != l1_size2)
@@ -769,12 +773,16 @@ static int check_refcounts_l1(BlockDriverState *bs,
                   l1_table_offset, l1_size2);
 
     /* Read L1 table entries from disk */
-    l1_table = qemu_malloc(l1_size2);
-    if (bdrv_pread(s->hd, l1_table_offset,
-                   l1_table, l1_size2) != l1_size2)
-        goto fail;
-    for(i = 0;i < l1_size; i++)
-        be64_to_cpus(&l1_table[i]);
+    if (l1_size2 == 0) {
+        l1_table = NULL;
+    } else {
+        l1_table = qemu_malloc(l1_size2);
+        if (bdrv_pread(s->hd, l1_table_offset,
+                       l1_table, l1_size2) != l1_size2)
+            goto fail;
+        for(i = 0;i < l1_size; i++)
+            be64_to_cpus(&l1_table[i]);
+    }
 
     /* Do the actual checks */
     for(i = 0; i < l1_size; i++) {

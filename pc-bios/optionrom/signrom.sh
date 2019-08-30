@@ -31,14 +31,16 @@ x=`dd if="$1" bs=1 count=1 skip=2 2>/dev/null | od -t u1 -A n`
 size=$(( $x * 512 - 1 ))
 
 # now get the checksum
-for i in `od -A n -t u1 -v "$1"`; do
+nums=`od -A n -t u1 -v "$1"`
+for i in ${nums}; do
     # add each byte's value to sum
-    sum=$(( $sum + $i ))
+    sum=`expr $sum + $i`
 done
 
 sum=$(( $sum % 256 ))
 sum=$(( 256 - $sum ))
+sum_octal=$( printf "%o" $sum )
 
 # and write the output file
 cp "$1" "$2"
-printf "\\$sum" | dd of="$2" bs=1 count=1 seek=$size conv=notrunc 2>/dev/null
+printf "\\$sum_octal" | dd of="$2" bs=1 count=1 seek=$size conv=notrunc 2>/dev/null
