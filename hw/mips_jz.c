@@ -42,7 +42,7 @@
 #include "mips_jz.h"
 #include "console.h"
 
-#define DEBUG                   /*global debug on/off */
+// #define DEBUG                   /*global debug on/off */
 
 #define DEBUG_CPM                     (1<<0x0)
 #define DEBUG_EMC                     (1<<0x1)
