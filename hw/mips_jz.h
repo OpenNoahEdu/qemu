@@ -176,8 +176,7 @@ int64_t jz_clk_getrate(jz_clk clk);
 void jz_clk_reparent(jz_clk clk, jz_clk parent);
 
 /*mips_jz.c*/
-struct jz_state_s *jz4740_init(unsigned long sdram_size,
-                                                              uint32_t osc_extal_freq,DisplayState * ds);
+struct jz_state_s *jz4740_init(unsigned long sdram_size, uint32_t osc_extal_freq);
 
 enum jz_cpu_model {
         jz4740,
