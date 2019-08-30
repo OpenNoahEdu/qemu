@@ -222,8 +222,6 @@ QEMUMachine mips_pavo_machine = {
     .name = "pavo",
     .desc = "JZ Pavo demo board",
     .init = mips_pavo_init,
-    .ram_require = (JZ4740_SRAM_SIZE + PAVO_RAM_SIZE) | RAMSIZE_FIXED,
-    .nodisk_ok = 1,
 };
 
 static void mips_pavo_machine_init(void)
