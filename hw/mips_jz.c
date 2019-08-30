@@ -82,10 +82,10 @@ static void debug_out(uint32_t flag, const char *format, ...)
     }
 }
 #else
-static void debug_init(void)
+inline void debug_init(void)
 {
 }
-static void debug_out(uint32_t flag, const char *format, ...)
+inline void debug_out(uint32_t flag, const char *format, ...)
 {
 }
 #endif
@@ -2711,6 +2711,7 @@ static void jz4740_touchscreen_interrupt(struct jz4740_sadc_s *s)
 static void jz4740_touchscreen_event(void *opaque,
                 int x, int y, int z, int buttons_state)
 {
+    if( x>0 && y>0 && x<32767 && y<32767){
     struct jz4740_sadc_s *s = opaque;
 
     if (!s->tchen)
@@ -2730,7 +2731,7 @@ static void jz4740_touchscreen_event(void *opaque,
 	   jz4740_touchscreen_interrupt(s);
 	}
 	s->pen_state = buttons_state;
-	
+    }
 }
 
 static uint32_t jz4740_sadc_read8(void *opaque, target_phys_addr_t addr)
