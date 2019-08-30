@@ -139,6 +139,7 @@ static struct clk *onchip_clks[] = {
     &mscclk,
     &usbclk,
     &ssiclk,
+    NULL
 };
 
 struct clk *jz_findclk(struct jz_state_s *cpu, const char *name)

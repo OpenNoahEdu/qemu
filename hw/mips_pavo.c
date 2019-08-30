@@ -205,7 +205,7 @@ static void mips_pavo_init(ram_addr_t ram_size, int vga_ram_size,
                 PAVO_RAM_SIZE + JZ4740_SRAM_SIZE);
         exit(1);
     }
-    s->soc = jz4740_init(PAVO_RAM_SIZE, PAVO_OSC_EXTAL,ds);
+    s->soc = jz4740_init(PAVO_RAM_SIZE, PAVO_OSC_EXTAL);
     pavo_nand_setup(s);
     if (pavo_rom_emu(s)<0)
    	{
