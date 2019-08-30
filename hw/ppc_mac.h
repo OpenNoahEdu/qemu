@@ -39,9 +39,6 @@
 
 #define ESCC_CLOCK 3686400
 
-/* DBDMA */
-void dbdma_init (int *dbdma_mem_index);
-
 /* Cuda */
 void cuda_init (int *cuda_mem_index, qemu_irq irq);
 
@@ -51,7 +48,8 @@ void macio_init (PCIBus *bus, int device_id, int is_oldworld, int pic_mem_index,
                  int nb_ide, int *ide_mem_index, int escc_mem_index);
 
 /* NewWorld PowerMac IDE */
-int pmac_ide_init (BlockDriverState **hd_table, qemu_irq irq);
+int pmac_ide_init (BlockDriverState **hd_table, qemu_irq irq,
+                   void *dbdma, int channel, qemu_irq dma_irq);
 
 /* Heathrow PIC */
 qemu_irq *heathrow_pic_init(int *pmem_index,
@@ -66,7 +64,8 @@ PCIBus *pci_pmac_init(qemu_irq *pic);
 /* Mac NVRAM */
 typedef struct MacIONVRAMState MacIONVRAMState;
 
-MacIONVRAMState *macio_nvram_init (int *mem_index, target_phys_addr_t size);
+MacIONVRAMState *macio_nvram_init (int *mem_index, target_phys_addr_t size,
+                                   unsigned int it_shift);
 void macio_nvram_map (void *opaque, target_phys_addr_t mem_base);
 void pmac_format_nvram_partition (MacIONVRAMState *nvr, int len);
 uint32_t macio_nvram_read (void *opaque, uint32_t addr);
@@ -112,18 +111,5 @@ void adb_kbd_init(ADBBusState *bus);
 void adb_mouse_init(ADBBusState *bus);
 
 extern ADBBusState adb_bus;
-
-/* openpic.c */
-/* OpenPIC have 5 outputs per CPU connected and one IRQ out single output */
-enum {
-    OPENPIC_OUTPUT_INT = 0, /* IRQ                       */
-    OPENPIC_OUTPUT_CINT,    /* critical IRQ              */
-    OPENPIC_OUTPUT_MCK,     /* Machine check event       */
-    OPENPIC_OUTPUT_DEBUG,   /* Inconditional debug event */
-    OPENPIC_OUTPUT_RESET,   /* Core reset event          */
-    OPENPIC_OUTPUT_NB,
-};
-qemu_irq *openpic_init (PCIBus *bus, int *pmem_index, int nb_cpus,
-                        qemu_irq **irqs, qemu_irq irq_out);
 
 #endif /* !defined(__PPC_MAC_H__) */

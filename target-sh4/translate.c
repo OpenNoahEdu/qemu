@@ -72,7 +72,7 @@ static TCGv_ptr cpu_env;
 static TCGv cpu_gregs[24];
 static TCGv cpu_pc, cpu_sr, cpu_ssr, cpu_spc, cpu_gbr;
 static TCGv cpu_vbr, cpu_sgr, cpu_dbr, cpu_mach, cpu_macl;
-static TCGv cpu_pr, cpu_fpscr, cpu_fpul;
+static TCGv cpu_pr, cpu_fpscr, cpu_fpul, cpu_ldst;
 static TCGv cpu_fregs[32];
 
 /* internal register indexes */
@@ -144,6 +144,8 @@ static void sh4_translate_init(void)
     cpu_delayed_pc = tcg_global_mem_new_i32(TCG_AREG0,
 					    offsetof(CPUState, delayed_pc),
 					    "_delayed_pc_");
+    cpu_ldst = tcg_global_mem_new_i32(TCG_AREG0,
+				      offsetof(CPUState, ldst), "_ldst_");
 
     for (i = 0; i < 32; i++)
         cpu_fregs[i] = tcg_global_mem_new_i32(TCG_AREG0,
@@ -184,6 +186,11 @@ void cpu_dump_state(CPUState * env, FILE * f,
 
 static void cpu_sh4_reset(CPUSH4State * env)
 {
+    if (qemu_loglevel_mask(CPU_LOG_RESET)) {
+        qemu_log("CPU Reset (CPU %d)\n", env->cpu_index);
+        log_cpu_state(env, 0);
+    }
+
 #if defined(CONFIG_USER_ONLY)
     env->sr = 0;
 #else
@@ -217,12 +224,14 @@ static sh4_def_t sh4_defs[] = {
 	.pvr = 0x00050000,
 	.prr = 0x00000100,
 	.cvr = 0x00110000,
+	.features = SH_FEATURE_BCR3_AND_BCR4,
     }, {
 	.name = "SH7751R",
 	.id = SH_CPU_SH7751R,
 	.pvr = 0x04050005,
 	.prr = 0x00000113,
 	.cvr = 0x00110000,	/* Neutered caches, should be 0x20480000 */
+	.features = SH_FEATURE_BCR3_AND_BCR4,
     }, {
 	.name = "SH7785",
 	.id = SH_CPU_SH7785,
@@ -272,8 +281,6 @@ CPUSH4State *cpu_sh4_init(const char *cpu_model)
     if (!def)
 	return NULL;
     env = qemu_mallocz(sizeof(CPUSH4State));
-    if (!env)
-	return NULL;
     env->features = def->features;
     cpu_exec_init(env);
     sh4_translate_init();
@@ -1176,6 +1183,17 @@ static void _decode_opc(DisasContext * ctx)
 	    }
 	}
 	return;
+    case 0xf00e: /* fmac FR0,RM,Rn */
+        {
+            CHECK_FPU_ENABLED
+            if (ctx->fpscr & FPSCR_PR) {
+                break; /* illegal instruction */
+            } else {
+                gen_helper_fmac_FT(cpu_fregs[FREG(B11_8)],
+                                   cpu_fregs[FREG(0)], cpu_fregs[FREG(B7_4)], cpu_fregs[FREG(B11_8)]);
+                return;
+            }
+        }
     }
 
     switch (ctx->opcode & 0xff00) {
@@ -1543,6 +1561,37 @@ static void _decode_opc(DisasContext * ctx)
     case 0x0029:		/* movt Rn */
 	tcg_gen_andi_i32(REG(B11_8), cpu_sr, SR_T);
 	return;
+    case 0x0073:
+        /* MOVCO.L
+	       LDST -> T
+               If (T == 1) R0 -> (Rn)
+               0 -> LDST
+        */
+        if (ctx->features & SH_FEATURE_SH4A) {
+	    int label = gen_new_label();
+	    gen_clr_t();
+	    tcg_gen_or_i32(cpu_sr, cpu_sr, cpu_ldst);
+	    tcg_gen_brcondi_i32(TCG_COND_EQ, cpu_ldst, 0, label);
+	    tcg_gen_qemu_st32(REG(0), REG(B11_8), ctx->memidx);
+	    gen_set_label(label);
+	    tcg_gen_movi_i32(cpu_ldst, 0);
+	    return;
+	} else
+	    break;
+    case 0x0063:
+        /* MOVLI.L @Rm,R0
+               1 -> LDST
+               (Rm) -> R0
+               When interrupt/exception
+               occurred 0 -> LDST
+        */
+	if (ctx->features & SH_FEATURE_SH4A) {
+	    tcg_gen_movi_i32(cpu_ldst, 0);
+	    tcg_gen_qemu_ld32s(REG(0), REG(B11_8), ctx->memidx);
+	    tcg_gen_movi_i32(cpu_ldst, 1);
+	    return;
+	} else
+	    break;
     case 0x0093:		/* ocbi @Rn */
 	{
 	    TCGv dummy = tcg_temp_new();
@@ -1829,11 +1878,9 @@ gen_intermediate_code_internal(CPUState * env, TranslationBlock * tb,
     ctx.features = env->features;
 
 #ifdef DEBUG_DISAS
-    if (loglevel & CPU_LOG_TB_CPU) {
-	fprintf(logfile,
-		"------------------------------------------------\n");
-	cpu_dump_state(env, logfile, fprintf, 0);
-    }
+    qemu_log_mask(CPU_LOG_TB_CPU,
+                 "------------------------------------------------\n");
+    log_cpu_state_mask(CPU_LOG_TB_CPU, env, 0);
 #endif
 
     ii = -1;
@@ -1926,13 +1973,12 @@ gen_intermediate_code_internal(CPUState * env, TranslationBlock * tb,
 
 #ifdef DEBUG_DISAS
 #ifdef SH4_DEBUG_DISAS
-    if (loglevel & CPU_LOG_TB_IN_ASM)
-	fprintf(logfile, "\n");
+    qemu_log_mask(CPU_LOG_TB_IN_ASM, "\n");
 #endif
-    if (loglevel & CPU_LOG_TB_IN_ASM) {
-	fprintf(logfile, "IN:\n");	/* , lookup_symbol(pc_start)); */
-	target_disas(logfile, pc_start, ctx.pc - pc_start, 0);
-	fprintf(logfile, "\n");
+    if (qemu_loglevel_mask(CPU_LOG_TB_IN_ASM)) {
+	qemu_log("IN:\n");	/* , lookup_symbol(pc_start)); */
+	log_target_disas(pc_start, ctx.pc - pc_start, 0);
+	qemu_log("\n");
     }
 #endif
 }

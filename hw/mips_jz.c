@@ -1890,7 +1890,6 @@ struct jz4740_lcdc_s
     struct jz_state_s *soc;
 
     DisplayState *state;
-    QEMUConsole *console;
     jz4740_lcd_fn_t *line_fn_tab;
     jz4740_lcd_fn_t line_fn;
 
@@ -2151,7 +2150,7 @@ static void jz4740_lcd_update_display(void *opaque)
     if (s->width != ds_get_width(s->state) ||
         s->height != ds_get_height(s->state))
     {
-        qemu_console_resize(s->console, s->width, s->height);
+        qemu_console_resize(s->state, s->width, s->height);
         s->invalidate = 1;
     }
 
@@ -2182,8 +2181,7 @@ static inline void jz4740_lcd_invalidate_display(void *opaque)
     s->invalidate = 1;
 }
 
-static struct jz4740_lcdc_s *jz4740_lcdc_init(struct jz_state_s *soc,
-                                              qemu_irq irq, DisplayState * ds)
+static struct jz4740_lcdc_s *jz4740_lcdc_init(struct jz_state_s *soc, qemu_irq irq)
 {
     int iomemtype;
 
@@ -2191,7 +2189,6 @@ static struct jz4740_lcdc_s *jz4740_lcdc_init(struct jz_state_s *soc,
     s->base = JZ4740_PHYS_BASE(JZ4740_LCD_BASE);
     s->soc = soc;
     s->irq = irq;
-    s->state = ds;
 
 
     jz4740_lcdc_reset(s);
@@ -2200,7 +2197,7 @@ static struct jz4740_lcdc_s *jz4740_lcdc_init(struct jz_state_s *soc,
         cpu_register_io_memory(0, jz4740_lcdc_readfn, jz4740_lcdc_writefn, s);
     cpu_register_physical_memory(s->base, 0x10000, iomemtype);
 
-    s->console = graphic_console_init(s->state, jz4740_lcd_update_display,
+    s->state = graphic_console_init(jz4740_lcd_update_display,
                                       jz4740_lcd_invalidate_display,
                                       NULL, NULL, s);
     switch (ds_get_bits_per_pixel(s->state))
@@ -2924,8 +2921,7 @@ static void jz4740_cpu_reset(void *opaque)
     fprintf(stderr, "%s: UNIMPLEMENTED!", __FUNCTION__);
 }
 
-struct jz_state_s *jz4740_init(unsigned long sdram_size,
-                               uint32_t osc_extal_freq, DisplayState * ds)
+struct jz_state_s *jz4740_init(unsigned long sdram_size, uint32_t osc_extal_freq)
 {
     struct jz_state_s *s = (struct jz_state_s *)
         qemu_mallocz(sizeof(struct jz_state_s));
@@ -2972,7 +2968,7 @@ struct jz_state_s *jz4740_init(unsigned long sdram_size,
     s->rtc = jz4740_rtc_init(s, intc[15]);
     s->tcu = jz4740_tcu_if_init(s, intc[23], intc[22], intc[21]);
     jz4740_tcu_init(s, s->tcu, 0);
-    s->lcdc = jz4740_lcdc_init(s, intc[30], ds);
+    s->lcdc = jz4740_lcdc_init(s, intc[30]);
     s->dma = jz4740_dma_init(s, intc[20]);
     s->sadc = jz4740_sadc_init(s,intc[12]);
 

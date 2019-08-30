@@ -170,8 +170,6 @@ static qemu_irq *r2d_fpga_init(target_phys_addr_t base, qemu_irq irl)
     r2d_fpga_t *s;
 
     s = qemu_mallocz(sizeof(r2d_fpga_t));
-    if (!s)
-        return NULL;
 
     s->irl = irl;
 
@@ -193,7 +191,7 @@ static int r2d_pci_map_irq(PCIDevice *d, int irq_num)
 }
 
 static void r2d_init(ram_addr_t ram_size, int vga_ram_size,
-              const char *boot_device, DisplayState * ds,
+              const char *boot_device,
 	      const char *kernel_filename, const char *kernel_cmdline,
 	      const char *initrd_filename, const char *cpu_model)
 {
@@ -222,26 +220,24 @@ static void r2d_init(ram_addr_t ram_size, int vga_ram_size,
     pci = sh_pci_register_bus(r2d_pci_set_irq, r2d_pci_map_irq, irq, 0, 4);
 
     sm501_vga_ram_addr = qemu_ram_alloc(SM501_VRAM_SIZE);
-    sm501_init(ds, 0x10000000, sm501_vga_ram_addr, SM501_VRAM_SIZE,
+    sm501_init(0x10000000, sm501_vga_ram_addr, SM501_VRAM_SIZE,
 	       serial_hds[2]);
 
     /* onboard CF (True IDE mode, Master only). */
-    mmio_ide_init(0x14001000, 0x1400080c, irq[CF_IDE], 1,
-        drives_table[drive_get_index(IF_IDE, 0, 0)].bdrv, NULL);
+    if ((i = drive_get_index(IF_IDE, 0, 0)) != -1)
+	mmio_ide_init(0x14001000, 0x1400080c, irq[CF_IDE], 1,
+		      drives_table[i].bdrv, NULL);
 
     /* NIC: rtl8139 on-board, and 2 slots. */
-    pci_nic_init(pci, &nd_table[0], 2 << 3, "rtl8139");
-    for (i = 1; i < nb_nics; i++)
-        pci_nic_init(pci, &nd_table[i], -1, "ne2k_pci");
+    for (i = 0; i < nb_nics; i++)
+        pci_nic_init(pci, &nd_table[i], (i==0)? 2<<3: -1, "rtl8139");
 
     /* Todo: register on board registers */
     {
       int kernel_size;
       /* initialization which should be done by firmware */
-      uint32_t bcr1 = 1 << 3; /* cs3 SDRAM */
-      uint16_t bcr2 = 3 << (3 * 2); /* cs3 32-bit */
-      cpu_physical_memory_write(SH7750_BCR1_A7, (uint8_t *)&bcr1, 4);
-      cpu_physical_memory_write(SH7750_BCR2_A7, (uint8_t *)&bcr2, 2);
+      stl_phys(SH7750_BCR1, 1<<3); /* cs3 SDRAM */
+      stw_phys(SH7750_BCR2, 3<<(3*2)); /* cs3 32bit */
 
       kernel_size = load_image(kernel_filename, phys_ram_base);
 

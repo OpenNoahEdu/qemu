@@ -105,7 +105,7 @@ void do_interrupt(CPUState * env)
 	}
     }
 
-    if (loglevel & CPU_LOG_INT) {
+    if (qemu_loglevel_mask(CPU_LOG_INT)) {
 	const char *expname;
 	switch (env->exception_index) {
 	case 0x0e0:
@@ -151,9 +151,9 @@ void do_interrupt(CPUState * env)
             expname = do_irq ? "interrupt" : "???";
             break;
 	}
-	fprintf(logfile, "exception 0x%03x [%s] raised\n",
-		irq_vector, expname);
-	cpu_dump_state(env, logfile, fprintf, 0);
+	qemu_log("exception 0x%03x [%s] raised\n",
+		  irq_vector, expname);
+	log_cpu_state(env, 0);
     }
 
     env->ssr = env->sr;
@@ -304,7 +304,7 @@ static void increment_urc(CPUState * env)
     urb = ((env->mmucr) >> 18) & 0x3f;
     urc = ((env->mmucr) >> 10) & 0x3f;
     urc++;
-    if (urc == urb || urc == UTLB_SIZE - 1)
+    if ((urb > 0 && urc > urb) || urc > (UTLB_SIZE - 1))
 	urc = 0;
     env->mmucr = (env->mmucr & 0xffff03ff) | (urc << 10);
 }
@@ -313,8 +313,8 @@ static void increment_urc(CPUState * env)
    Return entry, MMU_ITLB_MISS, MMU_ITLB_MULTIPLE or MMU_DTLB_MULTIPLE
    Update the itlb from utlb if update is not 0
 */
-int find_itlb_entry(CPUState * env, target_ulong address,
-		    int use_asid, int update)
+static int find_itlb_entry(CPUState * env, target_ulong address,
+                           int use_asid, int update)
 {
     int e, n;
 
@@ -344,7 +344,7 @@ int find_itlb_entry(CPUState * env, target_ulong address,
 
 /* Find utlb entry
    Return entry, MMU_DTLB_MISS, MMU_DTLB_MULTIPLE */
-int find_utlb_entry(CPUState * env, target_ulong address, int use_asid)
+static int find_utlb_entry(CPUState * env, target_ulong address, int use_asid)
 {
     /* per utlb access */
     increment_urc(env);
@@ -418,9 +418,9 @@ static int get_mmu_address(CPUState * env, target_ulong * physical,
     return n;
 }
 
-int get_physical_address(CPUState * env, target_ulong * physical,
-			 int *prot, target_ulong address,
-			 int rw, int access_type)
+static int get_physical_address(CPUState * env, target_ulong * physical,
+                                int *prot, target_ulong address,
+                                int rw, int access_type)
 {
     /* P1, P2 and P4 areas do not use translation */
     if ((address >= 0x80000000 && address < 0xc0000000) ||
@@ -525,7 +525,7 @@ target_phys_addr_t cpu_get_phys_page_debug(CPUState * env, target_ulong addr)
     return physical;
 }
 
-void cpu_load_tlb(CPUState * env)
+void cpu_load_tlb(CPUSH4State * env)
 {
     int n = cpu_mmucr_urc(env->mmucr);
     tlb_t * entry = &env->utlb[n];

@@ -204,7 +204,7 @@ void target_disas(FILE *out, target_ulong code, target_ulong size, int flags)
     return;
 #endif
 
-    for (pc = code; pc < code + size; pc += count) {
+    for (pc = code; size > 0; pc += count, size -= count) {
 	fprintf(out, "0x" TARGET_FMT_lx ":  ", pc);
 	count = print_insn(pc, &disasm_info);
 #if 0
@@ -250,7 +250,7 @@ void disas(FILE *out, void *code, unsigned long size)
 #elif defined(__x86_64__)
     disasm_info.mach = bfd_mach_x86_64;
     print_insn = print_insn_i386;
-#elif defined(__powerpc__)
+#elif defined(_ARCH_PPC)
     print_insn = print_insn_ppc;
 #elif defined(__alpha__)
     print_insn = print_insn_alpha;
@@ -276,7 +276,7 @@ void disas(FILE *out, void *code, unsigned long size)
 	    (long) code);
     return;
 #endif
-    for (pc = (unsigned long)code; pc < (unsigned long)code + size; pc += count) {
+    for (pc = (unsigned long)code; size > 0; pc += count, size -= count) {
 	fprintf(out, "0x%08lx:  ", pc);
 #ifdef __arm__
         /* since data is included in the code, it is better to

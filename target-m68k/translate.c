@@ -165,7 +165,7 @@ typedef void (*disas_proc)(DisasContext *, uint16_t);
 #define DISAS_INSN(name) \
   static void real_disas_##name (DisasContext *s, uint16_t insn); \
   static void disas_##name (DisasContext *s, uint16_t insn) { \
-    if (logfile) fprintf(logfile, "Dispatch " #name "\n"); \
+    qemu_log("Dispatch " #name "\n"); \
     real_disas_##name(s, insn); } \
   static void real_disas_##name (DisasContext *s, uint16_t insn)
 #else
@@ -2141,9 +2141,10 @@ DISAS_INSN(fpu)
             break;
         case 5: /* OS_DOUBLE */
             tcg_gen_mov_i32(tmp32, AREG(insn, 0));
-            switch (insn >> 3) {
+            switch ((insn >> 3) & 7) {
             case 2:
             case 3:
+                break;
             case 4:
                 tcg_gen_addi_i32(tmp32, tmp32, -8);
                 break;
@@ -2156,7 +2157,7 @@ DISAS_INSN(fpu)
                 goto undef;
             }
             gen_store64(s, tmp32, src);
-            switch (insn >> 3) {
+            switch ((insn >> 3) & 7) {
             case 3:
                 tcg_gen_addi_i32(tmp32, tmp32, 8);
                 tcg_gen_mov_i32(AREG(insn, 0), tmp32);
@@ -2236,7 +2237,7 @@ DISAS_INSN(fpu)
                 }
                 mask >>= 1;
             }
-            tcg_temp_free_i32(tmp32);
+            tcg_temp_free_i32(addr);
         }
         return;
     }
@@ -2254,9 +2255,10 @@ DISAS_INSN(fpu)
         if (opsize == OS_DOUBLE) {
             tmp32 = tcg_temp_new_i32();
             tcg_gen_mov_i32(tmp32, AREG(insn, 0));
-            switch (insn >> 3) {
+            switch ((insn >> 3) & 7) {
             case 2:
             case 3:
+                break;
             case 4:
                 tcg_gen_addi_i32(tmp32, tmp32, -8);
                 break;
@@ -2275,7 +2277,7 @@ DISAS_INSN(fpu)
                 goto undef;
             }
             src = gen_load64(s, tmp32);
-            switch (insn >> 3) {
+            switch ((insn >> 3) & 7) {
             case 3:
                 tcg_gen_addi_i32(tmp32, tmp32, 8);
                 tcg_gen_mov_i32(AREG(insn, 0), tmp32);
@@ -3063,11 +3065,11 @@ gen_intermediate_code_internal(CPUState *env, TranslationBlock *tb,
     *gen_opc_ptr = INDEX_op_end;
 
 #ifdef DEBUG_DISAS
-    if (loglevel & CPU_LOG_TB_IN_ASM) {
-        fprintf(logfile, "----------------\n");
-        fprintf(logfile, "IN: %s\n", lookup_symbol(pc_start));
-        target_disas(logfile, pc_start, dc->pc - pc_start, 0);
-        fprintf(logfile, "\n");
+    if (qemu_loglevel_mask(CPU_LOG_TB_IN_ASM)) {
+        qemu_log("----------------\n");
+        qemu_log("IN: %s\n", lookup_symbol(pc_start));
+        log_target_disas(pc_start, dc->pc - pc_start, 0);
+        qemu_log("\n");
     }
 #endif
     if (search_pc) {
