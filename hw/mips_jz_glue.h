@@ -281,7 +281,7 @@ static void glue(jz4740_tcu_init, TCU_INDEX) (struct jz_state_s * soc,
         qemu_new_timer(vm_clock, glue(jz4740_tcu_full_cb, TCU_INDEX), s);
 
     iomemtype =
-        cpu_register_io_memory(0, glue(jz4740_tcu_readfn, TCU_INDEX),
+        cpu_register_io_memory(glue(jz4740_tcu_readfn, TCU_INDEX),
                                glue(jz4740_tcu_writefn, TCU_INDEX), s);
     cpu_register_physical_memory(s->base + 0x00000040 + TCU_INDEX * 0x10,
                                  0x00000010, iomemtype);

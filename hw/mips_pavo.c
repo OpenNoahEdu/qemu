@@ -122,7 +122,7 @@ static void pavo_nand_setup(struct mips_pavo_s *s)
 	/*K9K8G08U0*/
 	s->nand = nandb_init(NAND_MFR_SAMSUNG,0xd3);
 
-	iomemtype = cpu_register_io_memory(0, pavo_nand_readfn,
+	iomemtype = cpu_register_io_memory(pavo_nand_readfn,
                     pavo_nand_writefn, s);
     cpu_register_physical_memory(0x18000000, 0x20000, iomemtype);
 }

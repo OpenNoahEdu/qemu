@@ -444,7 +444,7 @@ static struct jz4740_cpm_s *jz4740_cpm_init(struct jz_state_s *soc)
     jz4740_cpm_reset(s);
 
     iomemtype =
-        cpu_register_io_memory(0, jz4740_cpm_readfn, jz4740_cpm_writefn, s);
+        cpu_register_io_memory(jz4740_cpm_readfn, jz4740_cpm_writefn, s);
     cpu_register_physical_memory(s->base, 0x00001000, iomemtype);
     return s;
 }
@@ -571,7 +571,7 @@ static qemu_irq *jz4740_intc_init(struct jz_state_s *soc, qemu_irq parent_irq)
     jz4740_intc_reset(s);
 
     iomemtype =
-        cpu_register_io_memory(0, jz4740_intc_readfn, jz4740_intc_writefn, s);
+        cpu_register_io_memory(jz4740_intc_readfn, jz4740_intc_writefn, s);
     cpu_register_physical_memory(s->base, 0x00001000, iomemtype);
     return qemu_allocate_irqs(jz4740_set_irq, s, 32);
 }
@@ -999,7 +999,7 @@ static struct jz4740_emc_s *jz4740_emc_init(struct jz_state_s *soc,
     jz4740_emc_reset(s);
 
     iomemtype =
-        cpu_register_io_memory(0, jz4740_emc_readfn, jz4740_emc_writefn, s);
+        cpu_register_io_memory(jz4740_emc_readfn, jz4740_emc_writefn, s);
     cpu_register_physical_memory(s->base, 0x00010000, iomemtype);
     return s;
 
@@ -1365,7 +1365,7 @@ static struct jz4740_gpio_s *jz4740_gpio_init(struct jz_state_s *soc,
     jz4740_gpio_reset(s);
 
     iomemtype =
-        cpu_register_io_memory(0, jz4740_gpio_readfn, jz4740_gpio_writefn, s);
+        cpu_register_io_memory(jz4740_gpio_readfn, jz4740_gpio_writefn, s);
     cpu_register_physical_memory(s->base, 0x00010000, iomemtype);
     return s;
 
@@ -1575,7 +1575,7 @@ static struct jz4740_rtc_s *jz4740_rtc_init(struct jz_state_s *soc,
     jz4740_rtc_reset(s);
 
     iomemtype =
-        cpu_register_io_memory(0, jz4740_rtc_readfn, jz4740_rtc_writefn, s);
+        cpu_register_io_memory(jz4740_rtc_readfn, jz4740_rtc_writefn, s);
     cpu_register_physical_memory(s->base, 0x00001000, iomemtype);
     return s;
 }
@@ -1830,7 +1830,7 @@ static struct jz4740_tcu_s *jz4740_tcu_if_init(struct jz_state_s *soc,
     jz4740_tcu_if_reset(s);
 
     iomemtype =
-        cpu_register_io_memory(0, jz4740_tcu_if_readfn, jz4740_tcu_if_writefn,
+        cpu_register_io_memory(jz4740_tcu_if_readfn, jz4740_tcu_if_writefn,
                                s);
     cpu_register_physical_memory(s->base, 0x00000040, iomemtype);
     return s;
@@ -2194,7 +2194,7 @@ static struct jz4740_lcdc_s *jz4740_lcdc_init(struct jz_state_s *soc, qemu_irq i
     jz4740_lcdc_reset(s);
 
     iomemtype =
-        cpu_register_io_memory(0, jz4740_lcdc_readfn, jz4740_lcdc_writefn, s);
+        cpu_register_io_memory(jz4740_lcdc_readfn, jz4740_lcdc_writefn, s);
     cpu_register_physical_memory(s->base, 0x10000, iomemtype);
 
     s->state = graphic_console_init(jz4740_lcd_update_display,
@@ -2652,7 +2652,7 @@ static struct jz4740_dma_s *jz4740_dma_init(struct jz_state_s *soc,
     jz4740_dma_reset(s);
 
     iomemtype =
-        cpu_register_io_memory(0, jz4740_dma_readfn, jz4740_dma_writefn, s);
+        cpu_register_io_memory(jz4740_dma_readfn, jz4740_dma_writefn, s);
     cpu_register_physical_memory(s->base, 0x00010000, iomemtype);
     return s;
 
@@ -2911,7 +2911,7 @@ static struct jz4740_sadc_s *jz4740_sadc_init(struct jz_state_s *soc,
     jz4740_sadc_reset(s);
 
     iomemtype =
-        cpu_register_io_memory(0, jz4740_sadc_readfn, jz4740_sadc_writefn, s);
+        cpu_register_io_memory(jz4740_sadc_readfn, jz4740_sadc_writefn, s);
     cpu_register_physical_memory(s->base, 0x00001000, iomemtype);
     return s;
 }
