@@ -82,10 +82,10 @@ static void debug_out(uint32_t flag, const char *format, ...)
     }
 }
 #else
-inline void debug_init(void)
+static void debug_init(void)
 {
 }
-inline void debug_out(uint32_t flag, const char *format, ...)
+static void debug_out(uint32_t flag, const char *format, ...)
 {
 }
 #endif
