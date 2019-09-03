@@ -429,7 +429,6 @@ struct nand_bflash_s *nandb_init(int manf_id, int chip_id)
 {
     //int pagesize;
     struct nand_bflash_s *s;
-    int index;
     int i;
 
     s = (struct nand_bflash_s *) qemu_mallocz(sizeof(struct nand_bflash_s));
@@ -465,9 +464,9 @@ struct nand_bflash_s *nandb_init(int manf_id, int chip_id)
     }
 
     
-    index = drive_get_index(IF_MTD, 0, 0);
-    if (index != -1)
-        s->bdrv = drives_table[index].bdrv;
+    DriveInfo *dinfo = drive_get(IF_MTD, 0, 0);
+    if (dinfo != NULL)
+        s->bdrv = dinfo->bdrv;
     else
     {
     	fprintf(stderr, "%s: Please use -mtdblock to specify flash image.\n",
