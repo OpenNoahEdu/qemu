@@ -2585,9 +2585,11 @@ static void map_linear_vram(CirrusVGAState *s)
 
 static void unmap_linear_vram(CirrusVGAState *s)
 {
-    if (s->vga.map_addr && s->vga.lfb_addr && s->vga.lfb_end)
+    if (s->vga.map_addr && s->vga.lfb_addr && s->vga.lfb_end) {
         s->vga.map_addr = s->vga.map_end = 0;
-
+         cpu_register_physical_memory(s->vga.lfb_addr, s->vga.vram_size,
+                                      s->cirrus_linear_io_addr);
+    }
     cpu_register_physical_memory(isa_mem_base + 0xa0000, 0x20000,
                                  s->vga.vga_io_memory);
 }
@@ -2983,7 +2985,6 @@ static const VMStateDescription vmstate_pci_cirrus_vga = {
     .version_id = 2,
     .minimum_version_id = 2,
     .minimum_version_id_old = 2,
-    .post_load = cirrus_post_load,
     .fields      = (VMStateField []) {
         VMSTATE_PCI_DEVICE(dev, PCICirrusVGAState),
         VMSTATE_STRUCT(cirrus_vga, PCICirrusVGAState, 0,
@@ -3127,7 +3128,7 @@ void isa_cirrus_vga_init(void)
     s->vga.ds = graphic_console_init(s->vga.update, s->vga.invalidate,
                                      s->vga.screen_dump, s->vga.text_update,
                                      &s->vga);
-    vmstate_register(0, &vmstate_cirrus_vga, s);
+    vmstate_register(NULL, 0, &vmstate_cirrus_vga, s);
     rom_add_vga(VGABIOS_CIRRUS_FILENAME);
     /* XXX ISA-LFB support */
 }
@@ -3209,22 +3210,21 @@ static int pci_cirrus_vga_initfn(PCIDevice *dev)
          pci_register_bar((PCIDevice *)d, 1, CIRRUS_PNPMMIO_SIZE,
                           PCI_BASE_ADDRESS_SPACE_MEMORY, cirrus_pci_mmio_map);
      }
-
-     /* ROM BIOS */
-     rom_add_vga(VGABIOS_CIRRUS_FILENAME);
      return 0;
 }
 
 void pci_cirrus_vga_init(PCIBus *bus)
 {
-    pci_create_simple(bus, -1, "Cirrus VGA");
+    pci_create_simple(bus, -1, "cirrus-vga");
 }
 
 static PCIDeviceInfo cirrus_vga_info = {
-    .qdev.name    = "Cirrus VGA",
+    .qdev.name    = "cirrus-vga",
+    .qdev.desc    = "Cirrus CLGD 54xx VGA",
     .qdev.size    = sizeof(PCICirrusVGAState),
     .qdev.vmsd    = &vmstate_pci_cirrus_vga,
     .init         = pci_cirrus_vga_initfn,
+    .romfile      = VGABIOS_CIRRUS_FILENAME,
     .config_write = pci_cirrus_write_config,
 };
 

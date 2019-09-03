@@ -5,6 +5,7 @@
 #include "qemu-queue.h"
 #include "qemu-option.h"
 #include "qemu-config.h"
+#include "qobject.h"
 
 /* character device */
 
@@ -56,7 +57,7 @@ struct CharDriverState {
     int (*chr_ioctl)(struct CharDriverState *s, int cmd, void *arg);
     int (*get_msgfd)(struct CharDriverState *s);
     IOEventHandler *chr_event;
-    IOCanRWHandler *chr_can_read;
+    IOCanReadHandler *chr_can_read;
     IOReadHandler *chr_read;
     void *handler_opaque;
     void (*chr_send_event)(struct CharDriverState *chr, int event);
@@ -66,9 +67,11 @@ struct CharDriverState {
     QEMUBH *bh;
     char *label;
     char *filename;
+    int opened;
     QTAILQ_ENTRY(CharDriverState) next;
 };
 
+QemuOpts *qemu_chr_parse_compat(const char *label, const char *filename);
 CharDriverState *qemu_chr_open_opts(QemuOpts *opts,
                                     void (*init)(struct CharDriverState *s));
 CharDriverState *qemu_chr_open(const char *label, const char *filename, void (*init)(struct CharDriverState *s));
@@ -77,7 +80,7 @@ void qemu_chr_printf(CharDriverState *s, const char *fmt, ...);
 int qemu_chr_write(CharDriverState *s, const uint8_t *buf, int len);
 void qemu_chr_send_event(CharDriverState *s, int event);
 void qemu_chr_add_handlers(CharDriverState *s,
-                           IOCanRWHandler *fd_can_read,
+                           IOCanReadHandler *fd_can_read,
                            IOReadHandler *fd_read,
                            IOEventHandler *fd_event,
                            void *opaque);
@@ -87,7 +90,8 @@ int qemu_chr_can_read(CharDriverState *s);
 void qemu_chr_read(CharDriverState *s, uint8_t *buf, int len);
 int qemu_chr_get_msgfd(CharDriverState *s);
 void qemu_chr_accept_input(CharDriverState *s);
-void qemu_chr_info(Monitor *mon);
+void qemu_chr_info_print(Monitor *mon, const QObject *ret_data);
+void qemu_chr_info(Monitor *mon, QObject **ret_data);
 CharDriverState *qemu_chr_find(const char *name);
 
 extern int term_escape_char;
@@ -95,7 +99,7 @@ extern int term_escape_char;
 /* async I/O support */
 
 int qemu_set_fd_handler2(int fd,
-                         IOCanRWHandler *fd_read_poll,
+                         IOCanReadHandler *fd_read_poll,
                          IOHandler *fd_read,
                          IOHandler *fd_write,
                          void *opaque);
@@ -103,5 +107,4 @@ int qemu_set_fd_handler(int fd,
                         IOHandler *fd_read,
                         IOHandler *fd_write,
                         void *opaque);
-
 #endif

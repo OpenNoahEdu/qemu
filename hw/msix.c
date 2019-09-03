@@ -15,21 +15,15 @@
 #include "msix.h"
 #include "pci.h"
 
-/* Declaration from linux/pci_regs.h */
-#define  PCI_CAP_ID_MSIX 0x11 /* MSI-X */
-#define  PCI_MSIX_FLAGS 2     /* Table at lower 11 bits */
-#define  PCI_MSIX_FLAGS_QSIZE	0x7FF
-#define  PCI_MSIX_FLAGS_ENABLE	(1 << 15)
-#define  PCI_MSIX_FLAGS_BIRMASK	(7 << 0)
-
 /* MSI-X capability structure */
 #define MSIX_TABLE_OFFSET 4
 #define MSIX_PBA_OFFSET 8
 #define MSIX_CAP_LENGTH 12
 
-/* MSI enable bit is in byte 1 in FLAGS register */
-#define MSIX_ENABLE_OFFSET (PCI_MSIX_FLAGS + 1)
+/* MSI enable bit and maskall bit are in byte 1 in FLAGS register */
+#define MSIX_CONTROL_OFFSET (PCI_MSIX_FLAGS + 1)
 #define MSIX_ENABLE_MASK (PCI_MSIX_FLAGS_ENABLE >> 8)
+#define MSIX_MASKALL_MASK (PCI_MSIX_FLAGS_MASKALL >> 8)
 
 /* MSI-X table format */
 #define MSIX_MSG_ADDR 0
@@ -47,15 +41,6 @@
 #define MSIX_PAGE_PENDING (MSIX_PAGE_SIZE / 2)
 #define MSIX_MAX_ENTRIES 32
 
-
-#ifdef MSIX_DEBUG
-#define DEBUG(fmt, ...)                                       \
-    do {                                                      \
-      fprintf(stderr, "%s: " fmt, __func__ , __VA_ARGS__);    \
-    } while (0)
-#else
-#define DEBUG(fmt, ...) do { } while(0)
-#endif
 
 /* Flag for interrupt controller to declare MSI-X support */
 int msix_supported;
@@ -101,20 +86,9 @@ static int msix_add_config(struct PCIDevice *pdev, unsigned short nentries,
                  bar_nr);
     pdev->msix_cap = config_offset;
     /* Make flags bit writeable. */
-    pdev->wmask[config_offset + MSIX_ENABLE_OFFSET] |= MSIX_ENABLE_MASK;
+    pdev->wmask[config_offset + MSIX_CONTROL_OFFSET] |= MSIX_ENABLE_MASK |
+	    MSIX_MASKALL_MASK;
     return 0;
-}
-
-/* Handle MSI-X capability config write. */
-void msix_write_config(PCIDevice *dev, uint32_t addr,
-                       uint32_t val, int len)
-{
-    unsigned enable_pos = dev->msix_cap + MSIX_ENABLE_OFFSET;
-    if (addr + len <= enable_pos || addr > enable_pos)
-        return;
-
-    if (msix_enabled(dev))
-        qemu_set_irq(dev->irq[0], 0);
 }
 
 static uint32_t msix_mmio_readl(void *opaque, target_phys_addr_t addr)
@@ -157,10 +131,50 @@ static void msix_clr_pending(PCIDevice *dev, int vector)
     *msix_pending_byte(dev, vector) &= ~msix_pending_mask(vector);
 }
 
+static int msix_function_masked(PCIDevice *dev)
+{
+    return dev->config[dev->msix_cap + MSIX_CONTROL_OFFSET] & MSIX_MASKALL_MASK;
+}
+
 static int msix_is_masked(PCIDevice *dev, int vector)
 {
     unsigned offset = vector * MSIX_ENTRY_SIZE + MSIX_VECTOR_CTRL;
-    return dev->msix_table_page[offset] & MSIX_VECTOR_MASK;
+    return msix_function_masked(dev) ||
+	   dev->msix_table_page[offset] & MSIX_VECTOR_MASK;
+}
+
+static void msix_handle_mask_update(PCIDevice *dev, int vector)
+{
+    if (!msix_is_masked(dev, vector) && msix_is_pending(dev, vector)) {
+        msix_clr_pending(dev, vector);
+        msix_notify(dev, vector);
+    }
+}
+
+/* Handle MSI-X capability config write. */
+void msix_write_config(PCIDevice *dev, uint32_t addr,
+                       uint32_t val, int len)
+{
+    unsigned enable_pos = dev->msix_cap + MSIX_CONTROL_OFFSET;
+    int vector;
+
+    if (!range_covers_byte(addr, len, enable_pos)) {
+        return;
+    }
+
+    if (!msix_enabled(dev)) {
+        return;
+    }
+
+    qemu_set_irq(dev->irq[0], 0);
+
+    if (msix_function_masked(dev)) {
+        return;
+    }
+
+    for (vector = 0; vector < dev->msix_entries_nr; ++vector) {
+        msix_handle_mask_update(dev, vector);
+    }
 }
 
 static void msix_mmio_writel(void *opaque, target_phys_addr_t addr,
@@ -170,10 +184,7 @@ static void msix_mmio_writel(void *opaque, target_phys_addr_t addr,
     unsigned int offset = addr & (MSIX_PAGE_SIZE - 1) & ~0x3;
     int vector = offset / MSIX_ENTRY_SIZE;
     pci_set_long(dev->msix_table_page + offset, val);
-    if (!msix_is_masked(dev, vector) && msix_is_pending(dev, vector)) {
-        msix_clr_pending(dev, vector);
-        msix_notify(dev, vector);
-    }
+    msix_handle_mask_update(dev, vector);
 }
 
 static void msix_mmio_write_unallowed(void *opaque, target_phys_addr_t addr,
@@ -327,7 +338,7 @@ int msix_present(PCIDevice *dev)
 int msix_enabled(PCIDevice *dev)
 {
     return (dev->cap_present & QEMU_PCI_CAP_MSIX) &&
-        (dev->config[dev->msix_cap + MSIX_ENABLE_OFFSET] &
+        (dev->config[dev->msix_cap + MSIX_CONTROL_OFFSET] &
          MSIX_ENABLE_MASK);
 }
 
@@ -363,8 +374,8 @@ void msix_reset(PCIDevice *dev)
     if (!(dev->cap_present & QEMU_PCI_CAP_MSIX))
         return;
     msix_free_irq_entries(dev);
-    dev->config[dev->msix_cap + MSIX_ENABLE_OFFSET] &=
-	    ~dev->wmask[dev->msix_cap + MSIX_ENABLE_OFFSET];
+    dev->config[dev->msix_cap + MSIX_CONTROL_OFFSET] &=
+	    ~dev->wmask[dev->msix_cap + MSIX_CONTROL_OFFSET];
     memset(dev->msix_table_page, 0, MSIX_PAGE_SIZE);
     msix_mask_all(dev, dev->msix_entries_nr);
 }

@@ -91,6 +91,10 @@
 #define EndpointRequest ((USB_DIR_IN|USB_TYPE_STANDARD|USB_RECIP_ENDPOINT)<<8)
 #define EndpointOutRequest \
         ((USB_DIR_OUT|USB_TYPE_STANDARD|USB_RECIP_ENDPOINT)<<8)
+#define ClassInterfaceRequest \
+        ((USB_DIR_IN|USB_TYPE_CLASS|USB_RECIP_INTERFACE)<<8)
+#define ClassInterfaceOutRequest \
+        ((USB_DIR_OUT|USB_TYPE_CLASS|USB_RECIP_INTERFACE)<<8)
 
 #define USB_REQ_GET_STATUS		0x00
 #define USB_REQ_CLEAR_FEATURE		0x01
@@ -132,7 +136,7 @@ struct USBDevice {
 
     int speed;
     uint8_t addr;
-    char devname[32];
+    char product_desc[32];
     int auto_attach;
     int attached;
 
@@ -184,6 +188,8 @@ struct USBDeviceInfo {
      * Returns length or one of the USB_RET_ codes.
      */
     int (*handle_data)(USBDevice *dev, USBPacket *p);
+
+    const char *product_desc;
 
     /* handle legacy -usbdevice command line options */
     const char *usbdevice_name;
@@ -255,9 +261,6 @@ void usb_host_info(Monitor *mon);
 
 /* usb-hid.c */
 void usb_hid_datain_cb(USBDevice *dev, void *opaque, void (*datain)(void *));
-
-/* usb-net.c */
-USBDevice *usb_net_init(NICInfo *nd);
 
 /* usb-bt.c */
 USBDevice *usb_bt_init(HCIInfo *hci);
