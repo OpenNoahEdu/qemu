@@ -48,8 +48,8 @@ static inline void glue(jz4740_tcu_time_sync,
          //         s->freq[TCU_INDEX], s->prescale[TCU_INDEX]);
        // debug_out(DEBUG_TCU, "distance %lld s->time[TCU_INDEX] %lld \n",
        //           distance, s->time[TCU_INDEX]);
-        //temp = muldiv64(distance,(s->freq[TCU_INDEX]/s->prescale[TCU_INDEX]),ticks_per_sec);
-        temp = muldiv64(distance, 46875, ticks_per_sec);
+        //temp = muldiv64(distance,(s->freq[TCU_INDEX]/s->prescale[TCU_INDEX]),get_ticks_per_sec());
+        temp = muldiv64(distance, 46875, get_ticks_per_sec());
         if (temp != 0)
         {
             /*distance is too short */
@@ -63,7 +63,7 @@ static inline void glue(jz4740_tcu_time_sync,
              */
         }
 
-        //printf("%lld distance %lld \n",muldiv64(distance,(s->freq[TCU_INDEX]/s->prescale[TCU_INDEX]),ticks_per_sec),distance);
+        //printf("%lld distance %lld \n",muldiv64(distance,(s->freq[TCU_INDEX]/s->prescale[TCU_INDEX]),get_ticks_per_sec()),distance);
 
         if (s->tcnt[TCU_INDEX] >= 0x10000)
             s->tcnt[TCU_INDEX] = 0x0;
@@ -89,7 +89,7 @@ static inline void glue(jz4740_tcu_start_half,
         /*calculate next fire time */
         count =
             (s->tdhr[TCU_INDEX] - s->tcnt[TCU_INDEX]) * s->prescale[TCU_INDEX];
-        next += muldiv64(count, ticks_per_sec, s->freq[TCU_INDEX]);
+        next += muldiv64(count, get_ticks_per_sec(), s->freq[TCU_INDEX]);
         qemu_mod_timer(s->half_timer[TCU_INDEX], next);
 
     }
@@ -117,7 +117,7 @@ static inline void glue(jz4740_tcu_start_full,
         /*calculate next fire time */
         count =
             (s->tdfr[TCU_INDEX] - s->tcnt[TCU_INDEX]) * s->prescale[TCU_INDEX];
-        next += muldiv64(count, ticks_per_sec, s->freq[TCU_INDEX]);
+        next += muldiv64(count, get_ticks_per_sec(), s->freq[TCU_INDEX]);
         qemu_mod_timer(s->full_timer[TCU_INDEX], next);
                 debug_out(DEBUG_TCU, "s->tdfr[TCU_INDEX]  %d  s->tcnt[TCU_INDEX] %d  next  %lld \n",
        			          s->tdfr[TCU_INDEX] ,  s->tcnt[TCU_INDEX]  ,next);
@@ -142,7 +142,7 @@ static void glue(jz4740_tcu_half_cb, TCU_INDEX) (void *opaque)
         && (s->freq[TCU_INDEX] != 0))
     {
         count = s->tdfr[TCU_INDEX] * s->prescale[TCU_INDEX];
-        next += muldiv64(count, ticks_per_sec, s->freq[TCU_INDEX]);
+        next += muldiv64(count, get_ticks_per_sec(), s->freq[TCU_INDEX]);
         qemu_mod_timer(s->half_timer[TCU_INDEX], next);
         s->tfr |= 1 << (16 + TCU_INDEX);
         jz4740_tcu_update_interrupt(s);
@@ -164,7 +164,7 @@ static void glue(jz4740_tcu_full_cb, TCU_INDEX) (void *opaque)
         && (s->freq[TCU_INDEX] != 0))
     {
         count = s->tdfr[TCU_INDEX] * s->prescale[TCU_INDEX];
-        next += muldiv64(count, ticks_per_sec, s->freq[TCU_INDEX]);
+        next += muldiv64(count, get_ticks_per_sec(), s->freq[TCU_INDEX]);
         qemu_mod_timer(s->full_timer[TCU_INDEX], next);
         s->tfr |= 1 << TCU_INDEX;
         jz4740_tcu_update_interrupt(s);
